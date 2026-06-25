@@ -1,0 +1,97 @@
+#!/usr/bin/env bash
+# archwiki - search/read the offline Arch Wiki (pacman: arch-wiki-docs).
+# Local HTML mirror, no network needed. No lynx/w3m/pandoc on this box, so
+# articles are rendered to plain text with python.
+#
+# Usage:
+#   archwiki <query>      full-text search; list matching article titles
+#   archwiki -t <query>   title search only (find the exact article slug)
+#   archwiki -r <page>    render one article to plain text (title, slug, or query)
+#   archwiki -h           this help
+set -u
+
+DOCS=/usr/share/doc/arch-wiki/html/en
+[ -d "$DOCS" ] || {
+    echo "arch-wiki-docs not installed ($DOCS missing): sudo pacman -S arch-wiki-docs" >&2
+    exit 1
+}
+
+usage() {
+    cat <<'EOF'
+archwiki - search/read the offline Arch Wiki (pacman: arch-wiki-docs)
+  archwiki <query>      full-text search; list matching article titles
+  archwiki -t <query>   title search only (find the exact article slug)
+  archwiki -r <page>    render one article to plain text (title, slug, or query)
+  archwiki -h           this help
+EOF
+}
+
+# Skip the 32-hex asset/redirect stub files that clutter the doc dir.
+list_articles() { ls "$DOCS" | grep -iE '\.html$' | grep -vE '^[0-9a-f]{32}\.html$'; }
+
+# Render one HTML article to readable text: keep the article body, drop chrome.
+render() { # $1 = html file path
+    python - "$1" <<'PY'
+import sys, re, html
+s = open(sys.argv[1], encoding="utf-8", errors="replace").read()
+m = re.search(r'id="mw-content-text"', s)          # article body starts here
+if m: s = s[s.find(">", m.start()) + 1:]           # ...drop the rest of its opening tag
+e = re.search(r'id="catlinks"|class="printfooter"|id="footer"', s)  # ...and ends here
+if e: s = s[:e.start()]
+s = re.sub(r'(?is)<(script|style)\b.*?</\1>', ' ', s)
+s = re.sub(r'(?s)<!--.*?-->', ' ', s)
+s = re.sub(r'(?i)<li[^>]*>', '\n- ', s)            # list items -> bullets
+s = re.sub(r'(?i)<h[1-6][^>]*>', '\n\n', s)        # headings -> blank line
+s = re.sub(r'(?i)<(br|/p|/div|/h[1-6]|/tr|/li)[^>]*>', '\n', s)
+s = re.sub(r'(?s)<[^>]+>', '', s)                  # strip remaining tags
+s = html.unescape(s)
+s = re.sub(r'[ \t]+', ' ', s)
+s = re.sub(r' *\n *', '\n', s)
+s = re.sub(r'\n{3,}', '\n\n', s)
+print(s.strip())
+PY
+}
+
+# Resolve a free-form page argument to an article file path.
+resolve() { # $1 = title/slug/query -> echoes "$DOCS/<file>.html" or nothing
+    local q="$1" re f
+    re=$(printf '%s' "$q" | tr ' ' '_' | sed 's/[^A-Za-z0-9_:.+-]/./g')
+    f=$(list_articles | grep -iE "^${re}\.html$"     | head -n1)   # exact title
+    [ -z "$f" ] && f=$(list_articles | grep -iE "^${re}.*\.html$" | head -n1)  # prefix
+    [ -z "$f" ] && f=$(list_articles | grep -iE "${re}.*\.html$"  | head -n1)  # contains
+    [ -z "$f" ] && f=$(grep -ilF -- "$q" "$DOCS"/*.html 2>/dev/null | head -n1 | xargs -r -n1 basename)
+    [ -n "$f" ] && printf '%s/%s\n' "$DOCS" "$f"
+}
+
+titles() { list_articles | grep -iE "${1// /.}" | sed 's/\.html$//; s/_/ /g' | sort -u; }
+
+mode=search
+case "${1:-}" in
+    -h|--help|'') usage; exit 0 ;;
+    -t) mode=titles; shift ;;
+    -r) mode=read;   shift ;;
+esac
+query="${*:-}"
+[ -z "$query" ] && { usage; exit 1; }
+
+case "$mode" in
+    titles)
+        titles "$query"
+        ;;
+    read)
+        file=$(resolve "$query")
+        [ -z "$file" ] && { echo "No Arch Wiki article matches: $query" >&2; exit 1; }
+        echo "# $(basename "$file" .html | sed 's/_/ /g')  (source: $file)"
+        echo
+        render "$file"
+        ;;
+    search)
+        echo "== Title matches =="
+        titles "$query" | head -n 20
+        echo
+        echo "== Full-text matches =="
+        grep -ilF -- "$query" "$DOCS"/*.html 2>/dev/null \
+            | grep -vE "/[0-9a-f]{32}\.html$" \
+            | sed "s#^$DOCS/##; s/\.html$//; s/_/ /g" | sort -u | head -n 30
+        ;;
+esac

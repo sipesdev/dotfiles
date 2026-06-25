@@ -1,0 +1,17 @@
+# ~/.config/uwsm/env — exported into the whole uwsm/Hyprland session
+# (covers systemd user services + xdg-desktop-portal). AMD: no NVIDIA vars.
+export XDG_CURRENT_DESKTOP=Hyprland
+export XDG_SESSION_DESKTOP=Hyprland
+export XDG_SESSION_TYPE=wayland
+export GDK_BACKEND="wayland,x11,*"
+export QT_QPA_PLATFORM="wayland;xcb"
+export QT_WAYLAND_DISABLE_WINDOWDECORATION=1
+export QT_AUTO_SCREEN_SCALE_FACTOR=1
+export MOZ_ENABLE_WAYLAND=1
+export ELECTRON_OZONE_PLATFORM_HINT=auto
+export XCURSOR_SIZE=24
+export HYPRCURSOR_SIZE=24
+
+# Qt theming (Kvantum supplies matte-black colors+style for Qt5 & Qt6)
+export QT_QPA_PLATFORMTHEME=qt6ct
+export QT_STYLE_OVERRIDE=kvantum

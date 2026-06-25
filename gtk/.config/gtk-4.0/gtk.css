@@ -1,0 +1,44 @@
+/* Matte Black — recolors libadwaita (GTK4) & adw-gtk3 (GTK3) named colors.
+   Matches the rest of the desktop: bg #121212, surfaces #1a1a1a-#1e1e1e,
+   text #bebebe, accent #e68e0d. */
+@define-color window_bg_color #121212;
+@define-color window_fg_color #bebebe;
+@define-color view_bg_color #161616;
+@define-color view_fg_color #bebebe;
+@define-color headerbar_bg_color #1a1a1a;
+@define-color headerbar_fg_color #bebebe;
+@define-color headerbar_border_color #2a2a2a;
+@define-color headerbar_backdrop_color #151515;
+@define-color popover_bg_color #1e1e1e;
+@define-color popover_fg_color #bebebe;
+@define-color card_bg_color #1e1e1e;
+@define-color card_fg_color #bebebe;
+@define-color dialog_bg_color #1a1a1a;
+@define-color dialog_fg_color #bebebe;
+@define-color sidebar_bg_color #181818;
+@define-color sidebar_fg_color #bebebe;
+@define-color sidebar_backdrop_color #151515;
+@define-color sidebar_border_color #2a2a2a;
+@define-color secondary_sidebar_bg_color #161616;
+@define-color secondary_sidebar_fg_color #bebebe;
+@define-color secondary_sidebar_backdrop_color #151515;
+@define-color secondary_sidebar_border_color #2a2a2a;
+@define-color accent_bg_color #e68e0d;
+@define-color accent_fg_color #121212;
+@define-color accent_color #f0a93a;
+@define-color destructive_bg_color #b91c1c;
+@define-color destructive_fg_color #eaeaea;
+@define-color destructive_color #ff6b6b;
+@define-color success_color #FFC107;
+@define-color warning_color #f59e0b;
+@define-color error_color #D35F5F;
+@define-color borders #2a2a2a;
+/* GTK3 legacy fallbacks */
+@define-color theme_bg_color #121212;
+@define-color theme_fg_color #bebebe;
+@define-color theme_base_color #161616;
+@define-color theme_text_color #bebebe;
+@define-color theme_selected_bg_color #e68e0d;
+@define-color theme_selected_fg_color #121212;
+@define-color insensitive_bg_color #161616;
+@define-color insensitive_fg_color #606060;

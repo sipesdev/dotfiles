@@ -1,8 +1,8 @@
 # dotfiles — project guide
 
 GNU Stow-managed dotfiles for a **Framework 16** (Ryzen AI 9 HX 370 / Radeon 890M) running
-**Arch + Hyprland + Quickshell** — a "matte black" daily driver. This is a separate machine from the
-owner's Windows 11 primary. Backed up to a private GitHub repo.
+**Arch + Hyprland + Quickshell** — a "matte black" daily driver and the owner's primary machine.
+Backed up to a private GitHub repo.
 
 ## How Stow wiring works here (read this first)
 
@@ -36,6 +36,36 @@ a package.
 - `localbin`   → `~/.local/bin`                (helper scripts)
 - `webapps`    → `~/.local/share/applications` (web2app PWA `.desktop` launchers + `icons/`)
 - `shell`      → `~`                            (`.zshrc`, `.zprofile`, `.bashrc`, `.bash_profile`)
+- `gtk`        → `~/.config/gtk-3.0`, `gtk-4.0` (matte-black GTK3/GTK4 overrides — see theming below)
+- `qt`         → `~/.config/qt5ct`, `qt6ct`, `Kvantum` (Kvantum matte-black for Qt5/Qt6)
+- `uwsm`       → `~/.config/uwsm/env`           (login-phase session env; **activates** the Qt theme)
+
+## Theming (`gtk/`, `qt/`, `uwsm/`) — matte black across toolkits
+GTK apps use `adw-gtk3-dark` recolored to matte black by `gtk-3.0/gtk.css` + `gtk-4.0/gtk.css`
+(`#121212` bg / `#bebebe` fg / `#e68e0d` accent). Qt apps use the **Kvantum** style (`MatteBlack`
+theme) selected via `qt5ct`/`qt6ct`; the same palette drives `Kvantum/MatteBlack/MatteBlack.kvconfig`.
+The Quickshell SNI tray context menus are native Qt `QMenu`s (see Quickshell note), so they follow the
+Qt/Kvantum style — fixing Qt fixes the tray menus. What makes Qt actually load this: the env vars
+`QT_QPA_PLATFORMTHEME=qt6ct` and `QT_STYLE_OVERRIDE=kvantum`, set in **both** `uwsm/env` (login-global)
+and `hypr/modules/envs.lua` (in-session).
+- **Kvantum owns the Qt palette; qt6ct is fonts/icons only.** `qt5ct/qt6ct.conf` set
+  `custom_palette=false` + `style=kvantum` so the `MatteBlack` Kvantum theme is the single color
+  source. Setting `custom_palette=true` layers qt6ct's `MatteBlack.conf` palette on top of Kvantum
+  and produces "off" widget colors (wrong selection/disabled/menu tints) — don't re-enable it.
+  (Omarchy themes Qt the same way: Kvantum-only via `QT_STYLE_OVERRIDE=kvantum`, no qt6ct palette.)
+- **Do NOT edit via the qt6ct / Kvantum Manager GUIs.** Their atomic save replaces the stow symlink
+  with a real file (silently de-stows it) and re-adds a volatile `[SettingsWindow]` geometry block to
+  `qt6ct.conf`. Patch the repo files directly; if a GUI broke a link, re-`mv` the file in and `make stow`.
+- The `MatteBlack` Kvantum theme is **vendored from [KvLibadwaita](https://github.com/GabePoel/KvLibadwaita)**
+  (its `KvLibadwaitaDark` variant) — a libadwaita-style theme with flat widgets and rounded GTK-like
+  menus. Earlier bases were rejected: `KvDark` was 3D/beveled; `KvGnomeDark` had blue baked into its
+  SVG and non-rounded menus. Both `MatteBlack.svg` and `MatteBlack.kvconfig` are **real files** (not
+  symlinks; self-contained, won't auto-update on `kvantum` upgrades) that were **recolored** from
+  KvLibadwaita's mid-grey + blue to the matte `#121212` ramp + `#e68e0d` orange accent. The recolor
+  is reproducible via `scratchpad/recolor.py` (single-pass regex hex remap of the SVG + kvconfig).
+  KvLibadwaita is a user-space theme (no system package); it is NOT a dependency once vendored.
+- **Reload:** GTK/Qt do **not** hot-reload — relaunch the app. New env vars need a **re-login** (or a
+  Quickshell process restart for the tray menus); `hyprctl reload` is not enough.
 
 ## Hyprland (`hypr/`) — it's Lua, not hyprlang
 This build is configured in **Lua**, not the usual `.conf`/hyprlang. `hyprland.lua` is the entry point; it
@@ -59,6 +89,9 @@ lines after it — ignore the recurring `dbus`/`StatusNotifierItem`/`portal` war
   Quickshell airplane button behaves identically to the hardware key. No per-radio save/restore by design.
 - `autobrightness` — ALS-driven backlight. Does a one-shot read of `/sys/.../in_illuminance_raw` at start
   (because `monitor-sensor` only emits on change), then streams. Started/stopped by `Sys.autoBrightness`.
+- `archwiki` — searches/renders the offline Arch Wiki (`arch-wiki-docs` package, mirror under
+  `/usr/share/doc/arch-wiki/html/en`). `archwiki <query>` searches, `-t` titles only, `-r` renders an
+  article to plain text via `python` (no lynx/w3m/pandoc on this box).
 - `wifi-connect`, `web2app`, `web2app-remove`.
 
 ## Conventions
