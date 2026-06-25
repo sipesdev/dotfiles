@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# wifi-connect <SSID> <SECURED:0|1>
+# Connect to a Wi-Fi network. Prompts for a password via zenity (GTK) when the
+# network is secured and not already saved. Notifies on success/failure.
+set -u
+ssid="${1:-}"; secured="${2:-0}"
+[ -z "$ssid" ] && exit 1
+
+notify() { notify-send -a "Wi-Fi" "$@" 2>/dev/null || true; }
+
+# Already connected to this SSID? → disconnect (toggle off).
+if nmcli -t -f IN-USE,SSID dev wifi 2>/dev/null | grep -Fxq "*:${ssid}"; then
+  if nmcli connection down id "${ssid}" >/dev/null 2>&1; then
+    notify "Wi-Fi" "Disconnected from ${ssid}"
+  else
+    notify -u critical "Wi-Fi" "Failed to disconnect from ${ssid}"
+  fi
+  exit 0
+fi
+
+# Known (saved) connection?
+known=0
+nmcli -t -f NAME connection show 2>/dev/null | grep -Fxq "$ssid" && known=1
+
+psk=""
+if [ "$secured" = "1" ] && [ "$known" = "0" ]; then
+  if command -v zenity >/dev/null; then
+    psk=$(zenity --password --title="Wi-Fi — ${ssid}" 2>/dev/null) || exit 0
+    [ -z "$psk" ] && exit 0
+  else
+    notify -u critical "Wi-Fi" "Install 'zenity' to enter Wi-Fi passwords."
+    exit 1
+  fi
+fi
+
+notify "Wi-Fi" "Connecting to ${ssid}…" -t 2000
+
+if [ -n "$psk" ]; then
+  out=$(nmcli device wifi connect "$ssid" password "$psk" 2>&1)
+else
+  out=$(nmcli device wifi connect "$ssid" 2>&1)
+fi
+rc=$?
+
+if [ $rc -eq 0 ] && printf '%s' "$out" | grep -qi "successfully"; then
+  notify "Wi-Fi" "Connected to ${ssid}"
+else
+  msg=$(printf '%s' "$out" | tail -n1)
+  notify -u critical "Wi-Fi" "Failed to connect to ${ssid}: ${msg}"
+  command -v zenity >/dev/null && \
+    zenity --error --title="Wi-Fi" --width=340 \
+      --text="Could not connect to <b>${ssid}</b>.\n\n${msg}" 2>/dev/null &
+fi

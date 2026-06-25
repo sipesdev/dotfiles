@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# web2app-remove <Name>  — delete a web-app launcher + its icon
+set -euo pipefail
+name="${1:-}"; [ -z "$name" ] && { echo "Usage: web2app-remove <Name>"; exit 1; }
+apps="$HOME/.local/share/applications"
+rm -f "$apps/${name}.desktop" "$apps/icons/${name}.png"
+update-desktop-database "$apps" 2>/dev/null || true
+echo "Removed web app: ${name}"

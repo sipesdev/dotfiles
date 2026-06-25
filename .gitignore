@@ -1,0 +1,32 @@
+# ── secrets (never commit) ───────────────────────────────
+**/.env
+**/.env.*
+!**/*.example
+*.pem
+*.key
+*.p12
+id_rsa
+id_ed25519
+id_ecdsa
+*_rsa
+*_ed25519
+*.gpg
+*.age
+.config/gh/hosts.yml
+.netrc
+.password-store/
+# ── caches / history (noise) ─────────────────────────────
+*_history
+.cache/
+**/.cache/
+**/__pycache__/
+.local/share/applications/mimeinfo.cache
+# ── os / editor cruft ────────────────────────────────────
+.DS_Store
+*.swp
+*.swo
+*~
+# ── build output ─────────────────────────────────────────
+node_modules/
+dist/
+target/

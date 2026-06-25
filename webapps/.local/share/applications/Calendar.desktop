@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Calendar
+Comment=Calendar (web app)
+Exec=brave --app=https://calendar.google.com/calendar
+Terminal=false
+Type=Application
+Icon=/home/michael/.local/share/applications/icons/Calendar.png
+StartupNotify=true
+Categories=Network;WebBrowser;

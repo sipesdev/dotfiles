@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+# Ambient-light → backlight, via iio-sensor-proxy's monitor-sensor.
+# Started/stopped by Quickshell (Sys.autoBrightness). Maps lux to a backlight
+# percentage on a log curve with clamps + hysteresis to avoid flicker, and
+# cleanly stops its sensor child when Quickshell terminates it.
+set -u
+
+ALS=/sys/bus/iio/devices/iio:device0
+
+# Map a lux value to a backlight percent on a log curve:
+# 1 lux → 5% floor, ~500 lux → 100% ceiling (sane indoor range).
+lux_to_pct() {
+    awk -v l="$1" 'BEGIN{
+        if (l < 1) l = 1;
+        v = (log(l) / log(500)) * 100;
+        if (v < 5)   v = 5;
+        if (v > 100) v = 100;
+        printf "%d", v;
+    }'
+}
+
+last=-1
+# Apply a percent, but only on the first reading or when the change clears the
+# hysteresis band (avoids flicker from tiny sensor jitter).
+apply() {
+    local pct=$1
+    local d=$(( pct > last ? pct - last : last - pct ))
+    if (( last < 0 || d >= 3 )); then
+        brightnessctl -e4 -n2 set "${pct}%" >/dev/null 2>&1
+        last=$pct
+    fi
+}
+
+# Immediate one-shot from sysfs so the backlight corrects the instant
+# auto-brightness is enabled. monitor-sensor only prints "Light changed:" on an
+# actual CHANGE — with a steady ambient level it emits nothing, so the stream
+# loop below would block and never apply a first value. Seed it from the raw
+# illuminance: lux = (raw + offset) * scale.
+if [[ -r $ALS/in_illuminance_raw ]]; then
+    raw=$(cat "$ALS/in_illuminance_raw" 2>/dev/null)
+    if [[ -n $raw ]]; then
+        scale=$(cat "$ALS/in_illuminance_scale" 2>/dev/null || echo 1)
+        offset=$(cat "$ALS/in_illuminance_offset" 2>/dev/null || echo 0)
+        lux=$(awk -v r="$raw" -v s="$scale" -v o="$offset" 'BEGIN{ printf "%f", (r + o) * s }')
+        apply "$(lux_to_pct "$lux")"
+    fi
+fi
+
+# Read the sensor stream on fd 3 so this shell (not a pipeline subshell) owns it,
+# then kill monitor-sensor on any exit/termination.
+exec 3< <(monitor-sensor 2>/dev/null)
+sensor_pid=$!
+trap 'kill "$sensor_pid" 2>/dev/null' EXIT INT TERM
+
+while IFS= read -r line <&3; do
+    # Lines of interest: "Light changed: N (lux)"
+    [[ $line == *[Ll]ight* ]] || continue
+
+    lux=$(printf '%s\n' "$line" | grep -oE '[0-9]+([.][0-9]+)?' | head -1)
+    [[ -z $lux ]] && continue
+
+    apply "$(lux_to_pct "$lux")"
+done

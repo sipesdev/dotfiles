@@ -1,0 +1,16 @@
+#!/bin/sh
+# Airplane mode toggle for the Quickshell quick-settings button.
+#
+# Mirrors the kernel's built-in KEY_RFKILL handler (CONFIG_RFKILL_INPUT=y) EXACTLY:
+# a blanket toggle of ALL radios, with no per-radio save/restore. This keeps the
+# on-screen button and the hardware airplane key behaving identically, so the two
+# can never desync. Usable without sudo (/dev/rfkill carries the uaccess ACL for
+# the active session).
+#
+#   - any radio currently unblocked -> block everything   (airplane ON)
+#   - all radios already blocked     -> unblock everything (airplane OFF)
+if rfkill list | grep -q 'Soft blocked: no'; then
+    rfkill block all
+else
+    rfkill unblock all
+fi

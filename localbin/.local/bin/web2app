@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# web2app <Name> <https://url> [IconURL]
+# Create a Brave web-app launcher (frameless --app window, native Wayland).
+set -euo pipefail
+name="${1:-}"; url="${2:-}"; icon_url="${3:-}"
+if [ -z "$name" ] || [ -z "$url" ]; then
+  echo "Usage: web2app <Name> <https://url> [IconURL]"
+  echo "  e.g. web2app YouTube https://youtube.com"
+  exit 1
+fi
+case "$url" in http://*|https://*) ;; *) echo "URL must start with http:// or https://"; exit 1;; esac
+
+apps="$HOME/.local/share/applications"
+icons="$apps/icons"
+mkdir -p "$icons"
+icon="$icons/${name}.png"
+
+# Icon: explicit URL, else favicon service, else a themed fallback
+if [ -n "$icon_url" ]; then curl -fsSL -o "$icon" "$icon_url" || true; fi
+if [ ! -s "$icon" ]; then
+  domain=$(printf '%s' "$url" | sed -E 's#^https?://([^/]+).*#\1#')
+  curl -fsSL -o "$icon" "https://www.google.com/s2/favicons?domain=${domain}&sz=128" || true
+fi
+[ -s "$icon" ] || icon="applications-internet"
+
+cat > "$apps/${name}.desktop" <<DESKTOP
+[Desktop Entry]
+Name=${name}
+Comment=${name} (web app)
+Exec=brave --app=${url}
+Terminal=false
+Type=Application
+Icon=${icon}
+StartupNotify=true
+Categories=Network;WebBrowser;
+DESKTOP
+
+update-desktop-database "$apps" 2>/dev/null || true
+echo "Created '${name}' -> ${url}"
+echo "Launch it from Walker (Super+Space, search '${name}')."
