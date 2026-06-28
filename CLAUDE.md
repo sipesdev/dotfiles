@@ -39,6 +39,7 @@ a package.
 - `gtk`        → `~/.config/gtk-3.0`, `gtk-4.0` (matte-black GTK3/GTK4 overrides — see theming below)
 - `qt`         → `~/.config/qt5ct`, `qt6ct`, `Kvantum` (Kvantum matte-black for Qt5/Qt6)
 - `uwsm`       → `~/.config/uwsm/env`           (login-phase session env; **activates** the Qt theme)
+- `alacritty`  → `~/.config/alacritty`          (matte-black terminal; `JetBrainsMono Nerd Font`, matches the Quickshell `Theme.qml` system font)
 
 ## Theming (`gtk/`, `qt/`, `uwsm/`) — matte black across toolkits
 GTK apps use `adw-gtk3-dark` recolored to matte black by `gtk-3.0/gtk.css` + `gtk-4.0/gtk.css`

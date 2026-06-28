@@ -14,6 +14,7 @@ This is my personally managed dotfiles for my Arch Linux installation. It comes 
 - `gtk`        → `~/.config/gtk-3.0`, `~/.config/gtk-4.0`  (matte-black GTK3/GTK4 overrides)
 - `qt`         → `~/.config/{qt5ct,qt6ct,Kvantum}`         (Kvantum matte-black for Qt5/Qt6)
 - `uwsm`       → `~/.config/uwsm/env`                      (login-phase env; activates the Qt theme)
+- `alacritty`  → `~/.config/alacritty`                     (matte-black terminal; JetBrainsMono Nerd Font)
 
 ## Deploy on a new machine
 ```sh

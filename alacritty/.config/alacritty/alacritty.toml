@@ -1,0 +1,51 @@
+# Alacritty — matte black
+# (Shift+Return binding preserved exactly from your original.)
+
+[[keyboard.bindings]]
+key = "Return"
+mods = "Shift"
+chars = "\u001B\r"
+
+[font]
+size = 11.0
+
+[font.normal]
+family = "JetBrainsMono Nerd Font"
+style = "Regular"
+
+[window]
+padding = { x = 12, y = 12 }
+dynamic_padding = true
+opacity = 0.96
+
+[colors.primary]
+background = "#121212"
+foreground = "#bebebe"
+
+[colors.cursor]
+text = "#121212"
+cursor = "#eaeaea"
+
+[colors.selection]
+background = "#515151"
+text = "#bebebe"
+
+[colors.normal]
+black   = "#333333"
+red     = "#D35F5F"
+green   = "#FFC107"
+yellow  = "#e68e0d"
+blue    = "#5e81ac"
+magenta = "#b48ead"
+cyan    = "#bebebe"
+white   = "#bebebe"
+
+[colors.bright]
+black   = "#8a8a8d"
+red     = "#b91c1c"
+green   = "#f59e0b"
+yellow  = "#FFC107"
+blue    = "#7aa2f7"
+magenta = "#c678dd"
+cyan    = "#eaeaea"
+white   = "#ffffff"
