@@ -39,3 +39,17 @@ hl.monitor({
     position = "3520x0",
     scale    = 1,
 })
+
+-- ── Workspace layout ─────────────────────────────────────────────────
+-- Pin workspaces to monitors so the mapping is stable (Hyprland's default
+-- auto-assignment otherwise drifts). default:true makes each the monitor's
+-- startup workspace, so DP-11 (high-refresh) is the primary / workspace 1.
+-- Mobile-safe: if a bound monitor is absent (undocked), Hyprland falls the
+-- workspace back onto the internal panel. Workspaces 4-10 open on whichever
+-- monitor is focused (default Hyprland behaviour).
+--   WS1 -> DP-11 (high-refresh gaming panel — primary)
+--   WS2 -> DP-9  (second external)
+--   WS3 -> eDP-1 (laptop panel)
+hl.workspace_rule({ workspace = "1", monitor = "DP-11", default = true })
+hl.workspace_rule({ workspace = "2", monitor = "DP-9",  default = true })
+hl.workspace_rule({ workspace = "3", monitor = "eDP-1", default = true })
