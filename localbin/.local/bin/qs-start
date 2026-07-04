@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# qs-start -- launch Quickshell after the monitor set has settled.
+#
+# At boot the eGPU (OCuLink) DisplayPort outputs register a beat after the
+# internal panel. Quickshell started before they appear creates blank,
+# non-painting bars on the external monitors (the layer surface exists but
+# never renders its content). We wait until Hyprland's monitors are all
+# present and stable, then exec quickshell so every bar is painted from the
+# start. Mobile (no eGPU) settles on the internal panel immediately.
+set -u
+
+# Docked (EGPU_PRESENT set by ~/.config/uwsm/env) -> expect the panel plus at
+# least one external output before we consider the set complete.
+min=1
+[ "${EGPU_PRESENT:-0}" = "1" ] && min=2
+
+prev=-1 stable=0
+for _ in $(seq 1 48); do                 # ~12s ceiling, then launch regardless
+    n=$(hyprctl monitors 2>/dev/null | grep -c '^Monitor ')
+    if [ "$n" -ge "$min" ] && [ "$n" = "$prev" ]; then
+        stable=$((stable + 1))
+        [ "$stable" -ge 8 ] && break      # unchanged for ~2s
+    else
+        stable=0
+    fi
+    prev=$n
+    sleep 0.25
+done
+
+exec quickshell

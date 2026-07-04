@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# egpu-drm-devices -- emit AQ_DRM_DEVICES for Hyprland/aquamarine.
+#
+# When the eGPU is docked, the NVIDIA RTX 3080 Ti (vendor 0x10de) is the PRIMARY
+# renderer (listed first) so it composites its own displays natively -- no cross-
+# GPU copy, and games render/scan out entirely on it -- with the AMD 890M iGPU
+# (0x1002) second to drive the internal panel. Undocked, only the AMD iGPU is
+# emitted. (Pairs with the NVIDIA-primary env block in ~/.config/uwsm/env.)
+#
+# cardN numbers are resolved fresh here because they are NOT stable across
+# boots, and the resolved /dev/dri/cardN paths are colon-free -- the by-path
+# names contain ':' which AQ_DRM_DEVICES uses as its separator and so cannot
+# be passed directly.
+#
+#   (no args) -> print the colon-separated device list (empty if none found)
+#   --present -> print 1 if the NVIDIA eGPU is present, else 0
+set -u
+
+amd="" nv=""
+for link in /dev/dri/by-path/pci-*-card; do
+    [ -e "$link" ] || continue
+    pci=${link#*/pci-}; pci=${pci%-card}                 # e.g. 0000:c1:00.0
+    vendor=$(< "/sys/bus/pci/devices/$pci/vendor")
+    node=$(readlink -f "$link")                          # e.g. /dev/dri/card1 (colon-free)
+    case "$vendor" in
+        0x1002) amd=$node ;;
+        0x10de) nv=$node ;;
+    esac
+done
+
+if [ "${1-}" = "--present" ]; then
+    [ -n "$nv" ] && echo 1 || echo 0
+    exit 0
+fi
+
+# Docked -> NVIDIA first (primary compositor), AMD second (drives eDP-1).
+if   [ -n "$nv" ] && [ -n "$amd" ]; then printf '%s:%s\n' "$nv" "$amd"
+elif [ -n "$amd" ];                 then printf '%s\n' "$amd"
+elif [ -n "$nv" ];                  then printf '%s\n' "$nv"
+fi

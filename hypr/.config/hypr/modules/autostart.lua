@@ -10,8 +10,10 @@ hl.on("hyprland.start", function()
     hl.exec_cmd("hyprpaper")
     hl.exec_cmd("/home/michael/.config/hypr/wallpaper.sh")
 
-    -- Status bar + control center (Quickshell)
-    hl.exec_cmd("quickshell")
+    -- Status bar + control center (Quickshell). qs-start waits for the eGPU's
+    -- external outputs to register before launching -- starting too early
+    -- leaves blank, non-painting bars on the external monitors.
+    hl.exec_cmd("/home/michael/.local/bin/qs-start")
 
     -- Notifications
     hl.exec_cmd("mako")
@@ -21,6 +23,11 @@ hl.on("hyprland.start", function()
 
     -- PolicyKit authentication agent (GNOME)
     hl.exec_cmd("/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1")
+
+    -- Bluetooth pairing agent (bluez-tools). Quickshell's Bluetooth module talks
+    -- to BlueZ but registers no Agent1, so pairing new devices from the quick
+    -- settings menu needs an external agent. NoInputNoOutput = just-works auto-accept.
+    hl.exec_cmd("bt-agent --capability=NoInputNoOutput")
 
     -- Clipboard history daemon (cliphist)
     hl.exec_cmd("wl-paste --type text  --watch cliphist store")

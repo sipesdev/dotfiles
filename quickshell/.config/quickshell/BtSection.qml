@@ -17,9 +17,14 @@ ColumnLayout {
         if (adapter) adapter.discovering = sec.expanded;
     }
     function tapDevice(d) {
-        if (d.connected) d.disconnect();
-        else if (d.paired || d.bonded) d.connect();
-        else d.pair();
+        if (d.connected) { d.disconnect(); return; }
+        if (d.paired || d.bonded) { d.trusted = true; d.connect(); }
+        else d.pair();   // agent authorizes the bond; afterPair() then trusts + connects
+    }
+    // Pairing completes asynchronously. Once the bond lands, persist trust (PIN-less
+    // devices won't auto-reconnect otherwise) and bring the connection up.
+    function afterPair(d) {
+        if ((d.paired || d.bonded) && !d.connected) { d.trusted = true; d.connect(); }
     }
     function named(d) {
         var n = d.name;
@@ -109,6 +114,12 @@ ColumnLayout {
                     implicitHeight: visible ? 30 : 0
                     radius: Theme.radius
                     color: dm.containsMouse ? Theme.elevated : "transparent"
+                    // Auto-trust + connect a device the moment it finishes pairing.
+                    Connections {
+                        target: modelData
+                        function onBondedChanged() { sec.afterPair(modelData); }
+                        function onPairedChanged() { sec.afterPair(modelData); }
+                    }
                     RowLayout {
                         anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 8; spacing: 6
                         Text { Layout.fillWidth: true; text: modelData.name; elide: Text.ElideRight

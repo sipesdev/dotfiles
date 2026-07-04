@@ -1,5 +1,5 @@
 # ~/.config/uwsm/env — exported into the whole uwsm/Hyprland session
-# (covers systemd user services + xdg-desktop-portal). AMD: no NVIDIA vars.
+# (covers systemd user services + xdg-desktop-portal).
 export XDG_CURRENT_DESKTOP=Hyprland
 export XDG_SESSION_DESKTOP=Hyprland
 export XDG_SESSION_TYPE=wayland
@@ -15,3 +15,19 @@ export HYPRCURSOR_SIZE=24
 # Qt theming (Kvantum supplies matte-black colors+style for Qt5 & Qt6)
 export QT_QPA_PLATFORMTHEME=qt6ct
 export QT_STYLE_OVERRIDE=kvantum
+
+# eGPU (OCuLink RTX 3080 Ti) — pick the GPUs present at THIS login and, when
+# docked, make the NVIDIA card the PRIMARY renderer so it composites its own
+# displays natively (no cross-GPU copy) and games run on it directly. Resolved
+# fresh each login (cardN numbers aren't stable; by-path names contain ':', the
+# AQ_DRM_DEVICES separator). See ~/.local/bin/egpu-drm-devices.
+export AQ_DRM_DEVICES="$("$HOME/.local/bin/egpu-drm-devices")"
+export EGPU_PRESENT="$("$HOME/.local/bin/egpu-drm-devices" --present)"
+
+if [ "$EGPU_PRESENT" = "1" ]; then
+    # NVIDIA-primary Wayland: route GBM + GLX through the NVIDIA driver. Set only
+    # when docked — with no NVIDIA card these would break the iGPU-only (mobile)
+    # session. To revert to iGPU-primary, comment this block out and re-login.
+    export GBM_BACKEND=nvidia-drm
+    export __GLX_VENDOR_LIBRARY_NAME=nvidia
+fi
