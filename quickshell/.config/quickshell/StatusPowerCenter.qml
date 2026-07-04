@@ -221,6 +221,36 @@ PanelWindow {
 
             Rectangle { Layout.fillWidth: true; height: 1; color: Theme.elevated }
 
+            // ── Ethernet (wired) — status only; NM handles it, Wi-Fi auto-off ──
+            RowLayout {
+                Layout.fillWidth: true
+                visible: Sys.ethernetConnected
+                spacing: Theme.pad
+                Text {
+                    Layout.preferredWidth: 22
+                    horizontalAlignment: Text.AlignHCenter
+                    text: Theme.iEthernet
+                    color: Theme.text
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSize + 2
+                }
+                Text {
+                    Layout.fillWidth: true
+                    text: "Ethernet"
+                    color: Theme.text
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSize
+                }
+                Text {
+                    text: Sys.ethernetName
+                    color: Theme.dim
+                    elide: Text.ElideRight
+                    Layout.maximumWidth: 160
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSize - 1
+                }
+            }
+
             // ── WiFi (toggle + network picker) — locked out in airplane mode ──
             WifiSection {
                 Layout.fillWidth: true

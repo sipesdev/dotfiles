@@ -61,6 +61,7 @@ Singleton {
     readonly property string iLogout:   String.fromCodePoint(0xf08b)
     readonly property string iSuspend:  String.fromCodePoint(0xf186)
     readonly property string iAirplane: String.fromCodePoint(0xF001D)  // md-airplane (orange when active)
+    readonly property string iEthernet: String.fromCodePoint(0xF0200)  // md-ethernet (wired link)
 
     // ── Metrics ──────────────────────────────────────────────────────
     readonly property int  barHeight: 36

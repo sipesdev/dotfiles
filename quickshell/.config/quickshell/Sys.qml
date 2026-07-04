@@ -54,5 +54,51 @@ Singleton {
         onRunningChanged: if (!running) running = true
     }
 
-    Component.onCompleted: sys.refresh()
+    // ── Ethernet (wired) — auto-prefer the wire, park the radio ──────
+    // When a wired link comes up (e.g. the eGPU dock's ethernet) we flag it here
+    // and turn Wi-Fi off; when it goes away we bring Wi-Fi back (unless airplane
+    // mode has the radios locked out). We act only on the transition, so manually
+    // re-enabling Wi-Fi while still docked is never undone.
+    property bool ethernetConnected: false
+    property string ethernetName: ""
+
+    Process {
+        id: ethRead
+        command: ["sh", "-c",
+            "nmcli -t -f TYPE,STATE,CONNECTION device status 2>/dev/null | " +
+            "awk -F: '$1==\"ethernet\"&&$2==\"connected\"{print $3; exit}'"]
+        stdout: StdioCollector { onStreamFinished: sys.setEthernet(text.trim()) }
+    }
+    function refreshEthernet() { ethRead.running = true }
+
+    function setEthernet(name) {
+        var up = (name !== "");
+        sys.ethernetName = name;                       // keep the label current either way
+        if (up === sys.ethernetConnected) return;      // no transition → leave Wi-Fi alone
+        sys.ethernetConnected = up;
+        if (up) sys.setWifiRadio(false);                       // wired → drop the radio
+        else if (!sys.airplaneMode) sys.setWifiRadio(true);    // unwired → Wi-Fi back (unless airplane)
+    }
+
+    Process { id: wifiRadioCtl }
+    function setWifiRadio(on) {
+        wifiRadioCtl.command = ["nmcli", "radio", "wifi", on ? "on" : "off"];
+        wifiRadioCtl.running = true;
+    }
+
+    // Re-read the wired link on ANY NetworkManager change. `nmcli monitor` emits a
+    // line per device/connection state change (mirrors the rfkill watcher above).
+    Process {
+        id: nmWatch
+        running: true
+        command: ["nmcli", "monitor"]
+        stdout: SplitParser {
+            splitMarker: "\n"
+            onRead: sys.refreshEthernet()
+        }
+        // Keep it alive if `nmcli monitor` ever exits, same as the rfkill watcher.
+        onRunningChanged: if (!running) running = true
+    }
+
+    Component.onCompleted: { sys.refresh(); sys.refreshEthernet(); }
 }

@@ -63,9 +63,13 @@ Rectangle {
             font.family: Theme.fontFamily
             font.pixelSize: Theme.fontSize + 3
         }
+        // Wired takes over the network slot when docked (Wi-Fi is auto-off then).
         Text {
-            text: Theme.wifiGlyph(root.wifiOn, root.wifiConnected, root.wifiStrength)
-            color: root.wifiOn ? Theme.text : Theme.dim
+            text: Sys.ethernetConnected
+                  ? Theme.iEthernet
+                  : Theme.wifiGlyph(root.wifiOn, root.wifiConnected, root.wifiStrength)
+            color: Sys.ethernetConnected ? Theme.text
+                                         : (root.wifiOn ? Theme.text : Theme.dim)
             font.family: Theme.fontFamily
             font.pixelSize: Theme.fontSize + 3
         }
