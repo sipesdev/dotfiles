@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
+import Quickshell
 import Quickshell.Io
 import Quickshell.Networking
 
@@ -34,7 +35,7 @@ ColumnLayout {
         if (sec.expanded) { rescan.running = true; scanProc.running = true; }
     }
     function connect(ssid, secured) {
-        connProc.command = ["/home/michael/.local/bin/wifi-connect", ssid, secured ? "1" : "0"];
+        connProc.command = [Quickshell.env("HOME") + "/.local/bin/wifi-connect", ssid, secured ? "1" : "0"];
         connProc.running = true;
     }
     function parseNets(out) {

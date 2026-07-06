@@ -12,7 +12,7 @@ Singleton {
     property bool autoBrightness: false
     Process {
         id: autoBrightProc
-        command: ["/home/michael/.local/bin/autobrightness"]
+        command: [Quickshell.env("HOME") + "/.local/bin/autobrightness"]
         running: sys.autoBrightness          // start/stop the loop with the toggle
     }
 
@@ -20,7 +20,7 @@ Singleton {
     property bool airplaneMode: false
 
     function toggleAirplane() {
-        airplaneProc.command = ["/home/michael/.local/bin/airplane-toggle"];
+        airplaneProc.command = [Quickshell.env("HOME") + "/.local/bin/airplane-toggle"];
         airplaneProc.running = true;
     }
     // Refresh after the toggle finishes — covers the edge where no radio actually

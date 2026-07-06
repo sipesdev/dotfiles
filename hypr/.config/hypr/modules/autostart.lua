@@ -4,16 +4,18 @@
 -- so env + portals are already set up. (Per-app `uwsm app --` scoping
 -- can be added later if desired.)
 
+local home = os.getenv("HOME")
+
 hl.on("hyprland.start", function()
     -- Wallpaper: start hyprpaper, then set via IPC (conf alone races the
     -- 4K preload at startup on this build; the IPC setter retries until ready).
     hl.exec_cmd("hyprpaper")
-    hl.exec_cmd("/home/michael/.config/hypr/wallpaper.sh")
+    hl.exec_cmd(home .. "/.config/hypr/wallpaper.sh")
 
     -- Status bar + control center (Quickshell). qs-start waits for the eGPU's
     -- external outputs to register before launching -- starting too early
     -- leaves blank, non-painting bars on the external monitors.
-    hl.exec_cmd("/home/michael/.local/bin/qs-start")
+    hl.exec_cmd(home .. "/.local/bin/qs-start")
 
     -- Notifications
     hl.exec_cmd("mako")

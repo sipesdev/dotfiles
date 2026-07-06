@@ -6,7 +6,7 @@
 -- ║  API reference for THIS build: /usr/share/hypr/stubs/hl.meta.lua    ║
 -- ╚══════════════════════════════════════════════════════════════════╝
 
-local home = (os and os.getenv and os.getenv("HOME")) or "/home/michael"
+local home = (os and os.getenv and os.getenv("HOME")) or ("/home/" .. (os.getenv("USER") or "user"))
 local dir  = home .. "/.config/hypr/"
 
 local function load(file)

@@ -8,7 +8,7 @@
 # each -- adapting to docked/mobile with no reconfiguration. Explicit monitor
 # args skip the wait and target just those outputs.
 set -u
-wp="/home/michael/.config/hypr/wallpapers/1-dark-waters.jpg"
+wp="$HOME/.config/hypr/wallpapers/1-dark-waters.jpg"
 
 if [ "$#" -gt 0 ]; then
     mons=("$@")

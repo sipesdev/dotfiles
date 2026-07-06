@@ -5,6 +5,7 @@
 --   SUPER + SHIFT + <num/arrow> → move the active window (no letter clash)
 
 local mod = "SUPER"
+local home = os.getenv("HOME")
 
 -- Programs
 local terminal = "alacritty"
@@ -75,9 +76,9 @@ hl.bind(mod .. " + mouse:272", hl.dsp.window.drag(),   { mouse = true })
 hl.bind(mod .. " + mouse:273", hl.dsp.window.resize(), { mouse = true })
 
 -- ── Screenshots (hyprshot → ~/Pictures + clipboard) ───────────────────
-hl.bind("Print",           hl.dsp.exec_cmd("hyprshot -m region --freeze -o /home/michael/Pictures/Screenshots"))
-hl.bind(mod .. " + Print", hl.dsp.exec_cmd("hyprshot -m window -o /home/michael/Pictures/Screenshots"))
-hl.bind("SHIFT + Print",   hl.dsp.exec_cmd("hyprshot -m output -o /home/michael/Pictures/Screenshots"))
+hl.bind("Print",           hl.dsp.exec_cmd("hyprshot -m region --freeze -o " .. home .. "/Pictures/Screenshots"))
+hl.bind(mod .. " + Print", hl.dsp.exec_cmd("hyprshot -m window -o " .. home .. "/Pictures/Screenshots"))
+hl.bind("SHIFT + Print",   hl.dsp.exec_cmd("hyprshot -m output -o " .. home .. "/Pictures/Screenshots"))
 
 -- ── Color picker ──────────────────────────────────────────────────────
 hl.bind(mod .. " + SHIFT + C", hl.dsp.exec_cmd("hyprpicker -a"), { description = "Pick color" })

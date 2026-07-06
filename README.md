@@ -2,6 +2,8 @@
 
 Framework 16 · Arch · Hyprland · Quickshell — managed with [GNU Stow](https://www.gnu.org/software/stow/).
 
+![Desktop — Hyprland + Quickshell, matte black](assets/screenshot.png)
+
 ## About
 This is my personally managed dotfiles for my Arch Linux installation. It comes with my design dotfiles, GTK color overrides, my custom Kvantum theme, and a helper script for searching the local `arch-wiki-docs` for LLM searching.
 
@@ -22,3 +24,6 @@ sudo pacman -S --needed stow git zenity adw-gtk-theme papirus-icon-theme kvantum
 git clone git@github.com:sipesdev/dotfiles.git ~/Projects/dotfiles
 cd ~/Projects/dotfiles && bash install.sh   # or: make stow
 ```
+
+## License
+Released under the [GNU General Public License v3.0](LICENSE).

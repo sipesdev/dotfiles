@@ -6,6 +6,8 @@
 --   icc profile: ~/.local/share/icc/BOE_NE160QDM_NZ6.icm (notebookcheck calibration).
 -- See: https://wiki.hypr.land/Configuring/Basics/Monitors/
 
+local home = os.getenv("HOME")
+
 hl.monitor({
     output   = "eDP-1",
     mode     = "2560x1600@165",
@@ -13,7 +15,7 @@ hl.monitor({
     scale    = "auto",
     vrr      = 1,
     cm       = "srgb",
-    icc      = "/home/michael/.local/share/icc/BOE_NE160QDM_NZ6.icm",
+    icc      = home .. "/.local/share/icc/BOE_NE160QDM_NZ6.icm",
 })
 
 -- ── External displays (eGPU: RTX 3080 Ti via OCuLink) ─────────────────
