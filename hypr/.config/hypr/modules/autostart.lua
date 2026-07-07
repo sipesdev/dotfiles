@@ -23,6 +23,11 @@ hl.on("hyprland.start", function()
     -- Idle / lock management
     hl.exec_cmd("hypridle")
 
+    -- Block lid-close / suspend-key sleep while the OCuLink eGPU is docked
+    -- (s2idle resume drops it off the PCIe bus and crashes the machine). No-op
+    -- when undocked. Pairs with egpu-suspend-guard on hypridle's idle timer.
+    hl.exec_cmd(home .. "/.local/bin/egpu-suspend-inhibit")
+
     -- PolicyKit authentication agent (GNOME)
     hl.exec_cmd("/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1")
 

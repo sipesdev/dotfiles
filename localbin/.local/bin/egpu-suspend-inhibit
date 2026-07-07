@@ -1,0 +1,24 @@
+#!/bin/sh
+# egpu-suspend-inhibit -- block lid-close / suspend-key sleep while docked.
+#
+# Companion to egpu-suspend-guard (which covers hypridle's idle timer). Closing
+# the lid or pressing a suspend key is handled by logind, not hypridle, so those
+# paths need a logind inhibitor. A *block* lock on handle-lid-switch / handle-
+# suspend-key disables those handlers outright -- this is how GNOME/KDE take over
+# lid behaviour, and unlike a plain "sleep" lock it is NOT overridden by logind's
+# LidSwitchIgnoreInhibited (default yes). The "sleep" lock additionally refuses
+# an interactive `systemctl suspend`.
+#
+# Why: s2idle resume drops the OCuLink RTX 3080 Ti off the PCIe bus and crashes
+# the machine. The eGPU is connect-at-boot, so presence is a fixed, session-long
+# decision -- no eGPU (mobile / on battery) means no lock and suspend as usual.
+#
+# Launched once from hypr autostart; the held lock lives for the session and is
+# released when the session's cgroup is torn down at logout.
+[ "$("$HOME/.local/bin/egpu-drm-devices" --present)" = 1 ] || exit 0
+exec systemd-inhibit \
+    --what=handle-lid-switch:handle-suspend-key:sleep \
+    --who="egpu-suspend-inhibit" \
+    --why="OCuLink eGPU attached; s2idle resume drops it off the PCIe bus" \
+    --mode=block \
+    sleep infinity

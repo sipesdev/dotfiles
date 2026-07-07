@@ -1,0 +1,15 @@
+#!/bin/sh
+# egpu-suspend-guard -- gate hypridle's idle-suspend on eGPU presence.
+#
+# The OCuLink RTX 3080 Ti does not survive s2idle: on resume it drops off the
+# PCIe bus ("GPU has fallen off the bus", D3cold->D0 fails), the nvidia driver
+# faults, and the machine has to be hard-powered-off. The eGPU is connect-at-
+# boot (never hot-unplugged), so while it is present we simply never suspend --
+# by the time this 10-min timer fires the screen is already off from hypridle's
+# dpms listener. Undocked (mobile, on battery) the eGPU is absent and normal
+# suspend proceeds exactly as before.
+#
+# Wired from hypridle.conf's 10-min listener. Lid-close and the suspend key go
+# through logind rather than hypridle and are covered by egpu-suspend-inhibit.
+[ "$("$HOME/.local/bin/egpu-drm-devices" --present)" = 1 ] && exit 0
+exec systemctl suspend
