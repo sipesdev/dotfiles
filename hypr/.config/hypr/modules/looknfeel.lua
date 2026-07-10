@@ -40,8 +40,8 @@ hl.config({
         blur = {
             enabled           = true,
             size              = 3,
-            passes            = 2,
-            ignore_opacity    = true,  -- blur shows at full strength THROUGH translucent (inactive) windows → frosted glass
+            passes            = 1,     -- was 2; halves per-frame blur cost to keep the eGPU cool on the idle desktop
+            ignore_opacity    = false, -- was true (frosted glass through inactive windows); off = don't re-blur translucent windows every frame
             new_optimizations = true,
             vibrancy          = 0.1696,
         },

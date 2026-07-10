@@ -32,6 +32,7 @@ hl.monitor({
     mode     = "1920x1080@240",
     position = "1600x0",
     scale    = 1,
+    vrr      = 2,               -- FreeSync fullscreen-only; vrr=1 flickered on static desktop content on this panel
 })
 
 -- Far right: Acer KA242Y, 60 Hz.
@@ -40,6 +41,7 @@ hl.monitor({
     mode     = "1920x1080@60",
     position = "3520x0",
     scale    = 1,
+    vrr      = 1,               -- FreeSync: idle desktop drops to low refresh so the eGPU stays cool (fans off)
 })
 
 -- ── Workspace layout ─────────────────────────────────────────────────
