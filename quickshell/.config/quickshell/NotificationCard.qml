@@ -17,8 +17,26 @@ Item {
     required property int index                 // 0 == topmost == welded to the bar
 
     readonly property var record: modelData
-    // Actions live on the Notification, which is gone once the app closes it.
-    readonly property var actions: record.notif ? record.notif.actions : []
+
+    // Actions live on the Notification, which is gone once the app closes it -- hence the
+    // guard. An action identified "default" is the notification's default ACTIVATION, not a
+    // button: the spec says clicking the notification body is what invokes it, and that it
+    // must not be drawn (apps label it "View", "Open", "Reply"...). Quickshell hands over
+    // the raw list without applying that rule, so split it here. Everything else is a
+    // genuine button and still renders as one.
+    readonly property var actions: {
+        var out = [];
+        var all = record.notif ? record.notif.actions : [];
+        for (var i = 0; i < all.length; i++)
+            if (all[i].identifier !== "default") out.push(all[i]);
+        return out;
+    }
+    readonly property var defaultAction: {
+        var all = record.notif ? record.notif.actions : [];
+        for (var i = 0; i < all.length; i++)
+            if (all[i].identifier === "default") return all[i];
+        return null;
+    }
 
     width: Theme.notifWidth
     // Collapsed cells are skipped by the Column, so a card on its way out leaves no gap.
@@ -92,8 +110,25 @@ Item {
                 anchors.fill: parent
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
+                acceptedButtons: Qt.LeftButton | Qt.RightButton
                 onContainsMouseChanged: cell.record.hovered = hover.containsMouse
-                onClicked: cell.record.dismissing = true
+
+                // Left click activates the notification -- it invokes the default action, so
+                // clicking a mail or chat toast opens the thing it is about -- and then closes
+                // it. Right click only closes it, which is the way to get rid of one without
+                // activating whatever it would have launched. Both dismiss, so a card with no
+                // default action still goes away on either button.
+                //
+                // The action buttons below take their own left clicks first (later siblings,
+                // so they stack above this). They do not accept right clicks, which fall
+                // through to here -- right click anywhere on the card dismisses it.
+                onClicked: (mouse) => {
+                    // The notification can close between paint and click, taking its actions
+                    // with it; only invoke while it is still alive.
+                    if (mouse.button === Qt.LeftButton && cell.defaultAction && cell.record.notif)
+                        cell.defaultAction.invoke();
+                    cell.record.dismissing = true;
+                }
             }
 
             ColumnLayout {
