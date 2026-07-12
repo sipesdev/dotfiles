@@ -17,9 +17,6 @@ hl.on("hyprland.start", function()
     -- leaves blank, non-painting bars on the external monitors.
     hl.exec_cmd(home .. "/.local/bin/qs-start")
 
-    -- Notifications
-    hl.exec_cmd("mako")
-
     -- Idle / lock management
     hl.exec_cmd("hypridle")
 

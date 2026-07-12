@@ -68,10 +68,13 @@ Singleton {
     readonly property int  radius:    10        // Material rounding for bar pills/popouts
     readonly property int  gap:       6
     readonly property int  pad:       10
+    readonly property int  notifWidth: 360      // matches the status center, so the stacks line up
+    readonly property int  shadowPad:  24       // window room a drawer's drop shadow renders into
+    readonly property color shadow:    "#80000000"  // drop shadow behind the borderless drawers
 
     // ── Animation ────────────────────────────────────────────────────
     readonly property int  animFast: 120        // slider glide / quick UI feedback
-    readonly property int  animMed:  160        // popout fade in / out
+    readonly property int  animMed:  160        // popout + notification slide in / out
 
     // ── Typography ───────────────────────────────────────────────────
     readonly property string fontFamily: "JetBrainsMono Nerd Font"
