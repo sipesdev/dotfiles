@@ -78,12 +78,34 @@ windowrules`. The API surface (the `hl` global, `hl.bind`, `hl.dsp.*`) is descri
 **Reload:** `hyprctl reload`.
 
 ## Quickshell (`quickshell/`) — 0.3.0, hand-written QML
-No `qmldir`. `Theme.qml` and `Sys.qml` are `pragma Singleton`, auto-resolved by filename. `shell.qml`
-carries `//@ pragma UseQApplication` (required for native SNI tray context menus). `Sys.qml` holds
-cross-component state (airplane mode mirrors `rfkill`; auto-brightness owns the `autobrightness` process).
-**Hot-reloads on file save.** Verify a reload was clean with `quickshell log` (the running instance sends
-stdout/stderr to `/dev/null`, but logs persist on disk): look for `Configuration Loaded` with no `error`
-lines after it — ignore the recurring `dbus`/`StatusNotifierItem`/`portal` warnings, which are benign.
+No `qmldir`. `Theme.qml`, `Sys.qml` and `Notifs.qml` are `pragma Singleton`, auto-resolved by filename.
+`shell.qml` carries `//@ pragma UseQApplication` (required for native SNI tray context menus). `Sys.qml`
+holds cross-component state (airplane mode mirrors `rfkill`; auto-brightness owns the `autobrightness`
+process).
+
+**Do not trust the hot reload.** Quickshell watches the *inode*, and an editor that saves atomically
+(write temp + rename — which includes most tools) replaces it, so the watcher ends up on a deleted file:
+the FIRST save reloads, every save after it is silently ignored and you are testing stale QML. Restart
+instead, and verify:
+
+    pkill -x quickshell; sleep 1; setsid nohup quickshell >/dev/null 2>&1 < /dev/null &
+
+Verify with `quickshell log` (the running instance sends stdout/stderr to `/dev/null`, but logs persist on
+disk): look for `Configuration Loaded` with no `error` lines after it — ignore the recurring
+`dbus`/`StatusNotifierItem`/`portal` warnings, which are benign.
+
+### Notifications (`Notifs.qml`) — Quickshell owns the bus, not mako
+`Notifs.qml` is the notification daemon: it owns `org.freedesktop.Notifications`, caps every notification
+at 8s, and holds arrivals while a popout is open. **Never leave that bus name unowned** — D-Bus then
+returns `ServiceUnknown` and some apps abort rather than degrade, so any config error that stops Quickshell
+loading also takes notifications down with it. Check with `busctl --user list | grep -i Notifications`.
+
+mako is **masked**, not uninstalled (`systemctl --user mask mako.service`). Removing its autostart line is
+not enough on its own: it ships a D-Bus service file claiming the same name, so the next `notify-send`
+would activate it and steal the bus back. Masking is system state, not a dotfile, so it is deliberately
+**not** branch-scoped. To fall back to mako:
+
+    git checkout main && make restow && systemctl --user unmask mako.service   # then re-login
 
 ## Helper scripts (`localbin/`)
 - `airplane-toggle` — mirrors the kernel's `rfkill` blanket toggle (`block all` / `unblock all`) so the
