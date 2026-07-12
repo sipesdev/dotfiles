@@ -10,16 +10,20 @@ import QtQuick.Layouts
 PanelWindow {
     id: center
     property bool shown: false
-    // Stay mapped while shown OR while the fade-out is still playing, so the
-    // layer surface only unmaps once the card has finished fading to 0. (The
-    // window color is transparent, so the card's opacity is what fades.)
-    visible: shown || card.opacity > 0
+    readonly property int contentWidth: 360
+    // Stay mapped while shown OR while the slide-out is still in flight, so the
+    // layer surface only unmaps once the card is fully hidden behind the bar again.
+    visible: shown || card.y > -card.implicitHeight
 
+    // margins.top: 0 welds the surface to the bar. A top-anchored panel with exclusiveZone 0
+    // is placed below the bar's exclusive zone, so the surface top sits at the bar's bottom
+    // edge. The window spans to the screen edge and is padded on the left and bottom so the
+    // drop shadow has room; the card keeps its gap from the edge via its own rightMargin.
     anchors { top: true; right: true }
-    margins.top: Theme.gap
-    margins.right: Theme.gap
-    implicitWidth: 360
-    implicitHeight: card.implicitHeight
+    margins.top: 0
+    margins.right: 0
+    implicitWidth: contentWidth + Theme.gap + Theme.shadowPad
+    implicitHeight: card.implicitHeight + Theme.shadowPad
     color: "transparent"
     exclusiveZone: 0
 
@@ -121,18 +125,36 @@ PanelWindow {
         return "";
     }
 
+    // Drop shadow, cast from the card's shape only, tracking the card as it slides.
+    DrawerShadow {
+        width: center.contentWidth
+        height: card.implicitHeight
+        anchors.right: parent.right
+        anchors.rightMargin: Theme.gap
+        y: card.y
+        topLeftRadius:  0
+        topRightRadius: 0
+    }
+
     Rectangle {
         id: card
-        width: parent.width
+        width: center.contentWidth
+        anchors.right: parent.right
+        anchors.rightMargin: Theme.gap
         implicitHeight: col.implicitHeight + 2 * Theme.pad
-        radius: Theme.radius
-        color: Theme.surface
-        border.color: Theme.elevated
-        border.width: 1
+        // Square top corners weld the card to the bar; only the bottom is rounded.
+        topLeftRadius:     0
+        topRightRadius:    0
+        bottomLeftRadius:  Theme.radius
+        bottomRightRadius: Theme.radius
+        // Bar material sliding out of the bar: no border, matching the notifications.
+        color: Theme.bar
 
-        // Fade the popout in on open and out on close.
-        opacity: center.shown ? 1 : 0
-        Behavior on opacity { NumberAnimation { duration: Theme.animMed; easing.type: Easing.InOutQuad } }
+        // Slide the popout out of the bar on open and back behind it on close. At
+        // -height the card is entirely above the surface's top edge, so the layer
+        // surface clips it and it reads as hiding behind the bar.
+        y: center.shown ? 0 : -height
+        Behavior on y { NumberAnimation { duration: Theme.animMed; easing.type: Easing.OutCubic } }
 
         ColumnLayout {
             id: col
