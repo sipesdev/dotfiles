@@ -52,4 +52,13 @@ PanelWindow {
     // Popouts
     StatusPowerCenter { id: powerCenter }
     BatteryPopup { id: batPop }
+
+    // Notifications share the popouts' top-right corner, so an open popout holds the
+    // stack: arrivals queue and visible cards freeze until it closes. Cleared on
+    // destruction too, or unplugging this monitor would strand the hold forever.
+    NotificationLayer { barScreen: bar.screen }
+
+    readonly property bool popoutOpen: powerCenter.shown || batPop.shown
+    onPopoutOpenChanged: Notifs.setHold(bar, popoutOpen)
+    Component.onDestruction: Notifs.setHold(bar, false)
 }
