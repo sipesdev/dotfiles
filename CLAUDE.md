@@ -103,9 +103,13 @@ loading also takes notifications down with it. Check with `busctl --user list | 
 mako is **masked**, not uninstalled (`systemctl --user mask mako.service`). Removing its autostart line is
 not enough on its own: it ships a D-Bus service file claiming the same name, so the next `notify-send`
 would activate it and steal the bus back. Masking is system state, not a dotfile, so it is deliberately
-**not** branch-scoped. To fall back to mako:
+**not** branch-scoped. To fall back to mako — `345eae3` is the commit that added the daemon, and
+`make restow` prunes the symlinks its files leave behind:
 
-    git checkout main && make restow && systemctl --user unmask mako.service   # then re-login
+    git revert 345eae3 && make restow && systemctl --user unmask mako.service   # then re-login
+
+Keep the `mako` package installed while it is masked: masked, it cannot autostart, cannot be D-Bus
+activated, and cannot take the bus, so it costs nothing but buys that one-command fallback.
 
 ## Helper scripts (`localbin/`)
 - `airplane-toggle` — mirrors the kernel's `rfkill` blanket toggle (`block all` / `unblock all`) so the
