@@ -8,9 +8,19 @@ PanelWindow {
     id: pop
     property bool shown: false
     readonly property int contentWidth: 240
+
+    // How far the card is out of the bar: 0 = fully behind it, 1 = flush against it. The
+    // slide animates THIS rather than the card's y directly. Binding y to `shown ? 0 : -height`
+    // instead makes the Behavior fire on any height change, including one that happens while
+    // the popout is CLOSED -- here, the status line rewrapping when the charger goes in or out.
+    // y would then animate from -oldHeight to -newHeight, and for those 160ms the surface maps
+    // and flashes a strip of card out from under the bar.
+    property real reveal: shown ? 1 : 0
+    Behavior on reveal { NumberAnimation { duration: Theme.animMed; easing.type: Easing.OutCubic } }
+
     // Stay mapped while shown OR while the slide-out is still in flight, so the
     // layer surface only unmaps once the card is fully hidden behind the bar again.
-    visible: shown || card.y > -card.implicitHeight
+    visible: shown || reveal > 0
 
     // margins.top: 0 welds the surface to the bar. A top-anchored panel with exclusiveZone 0
     // is placed below the bar's exclusive zone, so the surface top sits at the bar's bottom
@@ -68,11 +78,12 @@ PanelWindow {
         // Bar material sliding out of the bar: no border, matching the notifications.
         color: Theme.bar
 
-        // Slide the popout out of the bar on open and back behind it on close. At
-        // -height the card is entirely above the surface's top edge, so the layer
-        // surface clips it and it reads as hiding behind the bar.
-        y: pop.shown ? 0 : -height
-        Behavior on y { NumberAnimation { duration: Theme.animMed; easing.type: Easing.OutCubic } }
+        // Slide the popout out of the bar on open and back behind it on close. At reveal 0
+        // the card sits entirely above the surface's top edge, so the layer surface clips it
+        // and it reads as hiding behind the bar. Deriving y from `reveal` (which is what
+        // animates) rather than animating y itself keeps a height change while closed an
+        // instant, silent reposition -- see the note on `reveal`.
+        y: -height * (1 - pop.reveal)
 
         ColumnLayout {
             id: colp
