@@ -107,15 +107,9 @@ back. Removing the package takes that file with it, which is what finally settle
 not reinstall mako and leave it sitting there**, because an installed mako can always be activated into an
 unowned bus.
 
-The cost is that Quickshell is now the only notification daemon on the box: if it fails to load, there is
-no fallback, and notifications are down until it loads again. That is what makes a config error under
-`quickshell/` more expensive than it looks.
-
-Rolling back is therefore no longer a one-liner — the package has to come back first. `345eae3` is the
-commit that added the daemon, and `make restow` prunes the symlinks its files leave behind:
-
-    sudo pacman -S mako
-    git revert 345eae3 && make restow    # then re-login
+Quickshell is therefore the only notification daemon on the box, and there is deliberately no fallback: if
+it fails to load, notifications are down until it loads again. That is what makes a config error under
+`quickshell/` more expensive than it looks — restart it and check the log (above) after any QML edit.
 
 ## Helper scripts (`localbin/`)
 - `airplane-toggle` — mirrors the kernel's `rfkill` blanket toggle (`block all` / `unblock all`) so the
