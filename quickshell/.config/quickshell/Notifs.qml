@@ -190,10 +190,11 @@ Singleton {
 
     function enqueue(rec) {
         var q = root.pending.concat([rec]);
-        // Drop the oldest queued notifications, not the newest arrivals. This cap must stay
-        // equal to maxVisible: it is what guarantees a drained record can never land past
-        // the visible cap and be flagged `dismissing` BEFORE its card exists -- the card
-        // would then miss onDismissingChanged and sit in the model forever.
+        // Drop the oldest queued notifications, not the newest arrivals: a burst that outlasts
+        // the popout is worth reading from its tail, not its head. The cap mirrors maxVisible
+        // because a drain cannot put more cards on screen than the stack shows anyway --
+        // anything past it is flagged `dismissing` by show() and animates straight back out
+        // without ever having been read, so queueing it only to bin it is wasted motion.
         while (q.length > root.maxVisible) root.discard(q.shift());
         root.pending = q;
     }
@@ -245,8 +246,13 @@ Singleton {
 
             stack.values = stack.values.filter((r) => r !== rec);
             Qt.callLater(() => {
-                if (n) n.dismiss();
+                // Reap the record BEFORE dismissing. unhook() stopped us hearing `closed`, so
+                // if the app calls CloseNotification in the tick between these two callbacks
+                // the server frees the notification and `n` is left dangling -- and a dangling
+                // ref is still truthy, so `if (n)` passes and dismiss() throws. Ordering the
+                // destroy first means that throw can no longer skip it and strand the record.
                 rec.destroy();
+                if (n) n.dismiss();
             });
         });
     }
