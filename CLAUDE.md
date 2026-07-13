@@ -100,16 +100,22 @@ at 8s, and holds arrivals while a popout is open. **Never leave that bus name un
 returns `ServiceUnknown` and some apps abort rather than degrade, so any config error that stops Quickshell
 loading also takes notifications down with it. Check with `busctl --user list | grep -i Notifications`.
 
-mako is **masked**, not uninstalled (`systemctl --user mask mako.service`). Removing its autostart line is
-not enough on its own: it ships a D-Bus service file claiming the same name, so the next `notify-send`
-would activate it and steal the bus back. Masking is system state, not a dotfile, so it is deliberately
-**not** branch-scoped. To fall back to mako — `345eae3` is the commit that added the daemon, and
-`make restow` prunes the symlinks its files leave behind:
+mako is **uninstalled** (`pacman -Rns mako`), not merely masked. Masking was the interim step, and it was
+needed because dropping mako's autostart line is not enough on its own: it shipped a D-Bus service file
+claiming the same name, so the next `notify-send` would have activated it and it would have stolen the bus
+back. Removing the package takes that file with it, which is what finally settles the question — so **do
+not reinstall mako and leave it sitting there**, because an installed mako can always be activated into an
+unowned bus.
 
-    git revert 345eae3 && make restow && systemctl --user unmask mako.service   # then re-login
+The cost is that Quickshell is now the only notification daemon on the box: if it fails to load, there is
+no fallback, and notifications are down until it loads again. That is what makes a config error under
+`quickshell/` more expensive than it looks.
 
-Keep the `mako` package installed while it is masked: masked, it cannot autostart, cannot be D-Bus
-activated, and cannot take the bus, so it costs nothing but buys that one-command fallback.
+Rolling back is therefore no longer a one-liner — the package has to come back first. `345eae3` is the
+commit that added the daemon, and `make restow` prunes the symlinks its files leave behind:
+
+    sudo pacman -S mako
+    git revert 345eae3 && make restow    # then re-login
 
 ## Helper scripts (`localbin/`)
 - `airplane-toggle` — mirrors the kernel's `rfkill` blanket toggle (`block all` / `unblock all`) so the
