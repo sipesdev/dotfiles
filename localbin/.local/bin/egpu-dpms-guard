@@ -1,0 +1,21 @@
+#!/bin/sh
+# egpu-dpms-guard -- gate hypridle's idle dpms-off on eGPU presence.
+#
+# Docked, the NVIDIA eGPU is the primary renderer and the AMD iGPU's only job
+# is scanning out eDP-1. A dpms-off then leaves the AMD card with no enabled
+# outputs, aquamarine tears down its secondary renderer ("Deinitializing
+# secondary renderer on /dev/dri/cardN"), and on dpms-on the rebuilt cross-GPU
+# blit chain is broken: eDP-1 stays black (backlight lit, no content) and
+# nothing short of a compositor restart recovers it -- not a per-monitor dpms
+# cycle, force_renderer_reload, disable/re-enable, a VT switch, or a scale
+# change (aquamarine#324; fix merged in aquamarine#316, unreleased as of
+# 0.14.0). So while docked we skip dpms-off: the displays stay lit while
+# locked and the eGPU keeps rendering them -- an accepted cost until a fixed
+# aquamarine release ships. Undocked (AMD-only, on battery) dpms is unaffected
+# and proceeds as before.
+#
+# Wired from hypridle.conf's dpms listener. Once the fix lands in a release,
+# restore the plain dpms-off there and retire this script -- after verifying
+# on the bench: dpms off, wait 20s, dpms on; eDP-1 must relight with content.
+[ "$("$HOME/.local/bin/egpu-drm-devices" --present)" = 1 ] && exit 0
+exec hyprctl dispatch 'hl.dsp.dpms("off")'
