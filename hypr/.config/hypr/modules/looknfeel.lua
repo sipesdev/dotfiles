@@ -51,6 +51,13 @@ hl.config({
         force_default_wallpaper = 0,            -- no anime mascot
         disable_hyprland_logo   = true,
         background_color        = "rgb(121212)", -- matte black behind windows
+
+        -- Compositor-level dpms wake: without these, a display blanked outside
+        -- hypridle's listener (manual dispatch, scripts) ignores all input and
+        -- only `hl.dsp.dpms("on")` can relight it -- an unrecoverable black
+        -- screen from the keyboard.
+        mouse_move_enables_dpms = true,
+        key_press_enables_dpms  = true,
     },
 
     dwindle = {
