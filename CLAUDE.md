@@ -73,7 +73,9 @@ This build is configured in **Lua**, not the usual `.conf`/hyprlang. `hyprland.l
 loads `modules/*.lua` by **absolute path via `loadfile()`** (plain `require("modules.x")` does not resolve
 in this build — don't use it). Modules: `animations, autostart, bindings, envs, input, looknfeel, monitors,
 windowrules`. The API surface (the `hl` global, `hl.bind`, `hl.dsp.*`) is described in the stub at
-`/usr/share/hypr/stubs/hl.meta.lua` — consult it before guessing API shape. Also present:
+`/usr/share/hypr/stubs/hl.meta.lua` — consult it before guessing API shape. This applies to
+`hyprctl dispatch` too: it evaluates its argument as Lua (`hyprctl dispatch 'hl.dsp.dpms("off")'`);
+classic hyprlang forms like `hyprctl dispatch dpms off` fail to parse on this build. Also present:
 `hypridle.conf`, `hyprlock.conf`, `hyprpaper.conf`, `wallpaper.sh`, `wallpapers/`.
 **Reload:** `hyprctl reload`.
 
