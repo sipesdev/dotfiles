@@ -35,6 +35,14 @@ hl.window_rule({
     float = true,
 })
 
+-- Float + center the Bitwarden extension unlock popup (Brave).
+hl.window_rule({
+    name  = "float-bitwarden-popup",
+    match = { class = "^(brave-nngceckbapebfimnlniiiahkandclblb-Default)$" },
+    float = true,
+    center = true,
+})
+
 -- No animation for the Quickshell bar/popouts — prevents the resize "bounce"
 -- when the status center grows (e.g. expanding the Wi-Fi list).
 hl.layer_rule({
