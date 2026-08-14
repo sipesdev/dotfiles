@@ -1,7 +1,7 @@
 [Desktop Entry]
 Name=Messages
 Comment=Messages (web app)
-Exec=brave --app=https://messages.google.com/web
+Exec=brave --profile-directory="Default" --app=https://messages.google.com/web
 Terminal=false
 Type=Application
 Icon=/home/michael/.local/share/applications/icons/Messages.png

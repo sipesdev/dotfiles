@@ -1,7 +1,7 @@
 [Desktop Entry]
 Name=YouTube
 Comment=YouTube (web app)
-Exec=brave --app=https://youtube.com
+Exec=brave --profile-directory="Default" --app=https://youtube.com
 Terminal=false
 Type=Application
 Icon=/home/michael/.local/share/applications/icons/YouTube.png

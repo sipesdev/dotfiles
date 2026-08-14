@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Zoom
+Comment=Zoom (web app)
+Exec=brave --profile-directory="Profile 1" --app=https://app.zoom.us/wc/home
+Terminal=false
+Type=Application
+Icon=/home/michael/.local/share/applications/icons/Zoom.png
+StartupNotify=true
+Categories=Network;WebBrowser;

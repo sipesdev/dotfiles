@@ -1,7 +1,7 @@
 [Desktop Entry]
 Name=Calendar
 Comment=Calendar (web app)
-Exec=brave --app=https://calendar.google.com/calendar
+Exec=brave --profile-directory="Default" --app=https://calendar.google.com/calendar
 Terminal=false
 Type=Application
 Icon=/home/michael/.local/share/applications/icons/Calendar.png

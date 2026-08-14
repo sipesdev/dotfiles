@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
-# web2app <Name> <https://url> [IconURL]
+# web2app <Name> <https://url> [IconURL] [ProfileDir]
 # Create a Brave web-app launcher (frameless --app window, native Wayland).
 set -euo pipefail
-name="${1:-}"; url="${2:-}"; icon_url="${3:-}"
+name="${1:-}"; url="${2:-}"; icon_url="${3:-}"; profile="${4:-Default}"
 if [ -z "$name" ] || [ -z "$url" ]; then
-  echo "Usage: web2app <Name> <https://url> [IconURL]"
+  echo "Usage: web2app <Name> <https://url> [IconURL] [ProfileDir]"
   echo "  e.g. web2app YouTube https://youtube.com"
+  echo "  ProfileDir is a Brave profile directory ('Default', 'Profile 1', ...); default: Default"
   exit 1
 fi
 case "$url" in http://*|https://*) ;; *) echo "URL must start with http:// or https://"; exit 1;; esac
@@ -27,7 +28,7 @@ cat > "$apps/${name}.desktop" <<DESKTOP
 [Desktop Entry]
 Name=${name}
 Comment=${name} (web app)
-Exec=brave --app=${url}
+Exec=brave --profile-directory="${profile}" --app=${url}
 Terminal=false
 Type=Application
 Icon=${icon}
