@@ -27,12 +27,17 @@ hl.monitor({
 -- x-offset 1600 assumes eDP-1 scale 1.6 -> 1600 logical wide (2560 / 1.6).
 
 -- Middle: Acer XZ270 Z, high-refresh gaming panel (240 Hz rated; 280 OC avail).
+-- VRR stays OFF: this VA panel gamma-pulses whenever adaptive sync is active at
+-- the wire -- vrr=1 pulsed on the static desktop, vrr=2 pulsed in every
+-- fullscreen app (verified against the kernel VRR_ENABLED prop, 2026-08).
+-- NOTE: a vrr change + `hyprctl reload` does NOT reach the connector; it needs
+-- a modeset (e.g. bounce mode 240->120->240) before the wire state changes.
 hl.monitor({
     output   = "DP-11",
     mode     = "1920x1080@240",
     position = "1600x0",
     scale    = 1,
-    vrr      = 2,               -- FreeSync fullscreen-only; vrr=1 flickered on static desktop content on this panel
+    vrr      = 0,
 })
 
 -- Far right: Acer KA242Y, 60 Hz.

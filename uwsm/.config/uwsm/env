@@ -16,6 +16,10 @@ export HYPRCURSOR_SIZE=24
 export QT_QPA_PLATFORMTHEME=qt6ct
 export QT_STYLE_OVERRIDE=kvantum
 
+# Gaming: shared DXVK tuning for every Proton/Wine game (see dxvk package).
+# Steam inherits this at login; per-game DXVK_CONFIG overrides it on top.
+export DXVK_CONFIG_FILE="$HOME/.config/dxvk/dxvk.conf"
+
 # eGPU (OCuLink RTX 3080 Ti) — pick the GPUs present at THIS login and, when
 # docked, make the NVIDIA card the PRIMARY renderer so it composites its own
 # displays natively (no cross-GPU copy) and games run on it directly. Resolved

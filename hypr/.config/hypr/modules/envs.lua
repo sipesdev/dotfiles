@@ -22,6 +22,10 @@ hl.env("MOZ_ENABLE_WAYLAND", "1")
 -- Electron / Chromium (Brave web apps, VS Code, etc.) → native Wayland
 hl.env("ELECTRON_OZONE_PLATFORM_HINT", "auto")
 
+-- Gaming: shared DXVK tuning for every Proton/Wine game -- login-phase copy
+-- lives in ~/.config/uwsm/env (see the dxvk package)
+hl.env("DXVK_CONFIG_FILE", os.getenv("HOME") .. "/.config/dxvk/dxvk.conf")
+
 -- Desktop identity (also set by uwsm via the .desktop DesktopNames)
 hl.env("XDG_CURRENT_DESKTOP", "Hyprland")
 hl.env("XDG_SESSION_TYPE", "wayland")
