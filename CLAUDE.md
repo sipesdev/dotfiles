@@ -2,7 +2,7 @@
 
 GNU Stow-managed dotfiles for a **Framework 16** (Ryzen AI 9 HX 370 / Radeon 890M) running
 **Arch + Hyprland + Quickshell** — a "matte black" daily driver and the owner's primary machine.
-Backed up to a private GitHub repo.
+Backed up to a **public** GitHub repo (`github.com/sipesdev/dotfiles`).
 
 ## How Stow wiring works here (read this first)
 
@@ -131,7 +131,13 @@ it fails to load, notifications are down until it loads again. That is what make
   args (`stow ... hypr quickshell`) or use an array, not an unquoted list variable.
 
 ## Backup / secrets
-Private GitHub repo; **PWAs only, no project source repos**. Only the named packages are stowed, and
-`.gitignore` backstops secrets (`.env`, keys, `*_history`, caches). **Never commit tokens, keys, or
-passwords** — scripts here read credentials at runtime (e.g. `wifi-connect` prompts via zenity), nothing is
-hardcoded. Keep it that way.
+**Public** GitHub repo (`sipesdev/dotfiles`, verified `gh repo view --json visibility` 2026-08-21) —
+everything committed is world-readable: file contents, commit messages, PR bodies and review threads.
+Fully-qualified issue references (`owner/repo#N`, or the full URL) in a PR body, commit message, or
+comment autolink and post a permanent public "mentioned this" event on the upstream issue's timeline
+(PR #7 did this on `hyprwm/aquamarine#324` and `#316`; such events cannot be removed afterwards). Default
+to the non-linking forms — a code span (`` `hyprwm/aquamarine#324` ``) or the bare `aquamarine#324` — and
+use the autolinking form only when the mention is deliberately meant for upstream. **PWAs only, no project
+source repos**. Only the named packages are stowed, and `.gitignore` backstops secrets (`.env`, keys,
+`*_history`, caches). **Never commit tokens, keys, or passwords** — scripts here read credentials at
+runtime (e.g. `wifi-connect` prompts via zenity), nothing is hardcoded. Keep it that way.
