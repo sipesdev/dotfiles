@@ -19,12 +19,13 @@ Singleton {
     }
 
     // ── Ethernet (wired) — auto-prefer the wire, park the radio ──────
-    // When a wired link comes up (e.g. the eGPU dock's ethernet) we flag it here
-    // and turn Wi-Fi off; when it goes away we bring Wi-Fi back. We act only on the
-    // transition, so manually
-    // re-enabling Wi-Fi while still docked is never undone.
+    // When a wired link comes up (e.g. the eGPU dock's ethernet) we flag it here and turn
+    // Wi-Fi off; when it goes away we bring Wi-Fi back only if WE parked it, so a radio that
+    // was already off (hardware airplane key, switched off by hand) stays off. We act only
+    // on the transition, so manually re-enabling Wi-Fi while still docked is never undone.
     property bool ethernetConnected: false
     property string ethernetName: ""
+    property bool wifiParkedByWire: false
 
     Process {
         id: ethRead
@@ -40,8 +41,8 @@ Singleton {
         sys.ethernetName = name;                       // keep the label current either way
         if (up === sys.ethernetConnected) return;      // no transition → leave Wi-Fi alone
         sys.ethernetConnected = up;
-        if (up) sys.setWifiRadio(false);                       // wired → drop the radio
-        else sys.setWifiRadio(true);                           // unwired → Wi-Fi back
+        if (up) { sys.wifiParkedByWire = sys.wifiEnabled; sys.setWifiRadio(false); }   // wired → park the radio
+        else if (sys.wifiParkedByWire) { sys.wifiParkedByWire = false; sys.setWifiRadio(true); }   // unwired → unpark
     }
 
     Process { id: wifiRadioCtl }
