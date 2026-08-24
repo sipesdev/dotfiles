@@ -2,12 +2,13 @@
 STOW := stow --no-folding --verbose --target=$(HOME)
 PKGS := hypr quickshell localbin webapps shell gtk qt uwsm alacritty gamemode mangohud dxvk
 
-.PHONY: all stow restow unstow list
+.PHONY: all stow restow unstow list test
 all: stow
 stow:   ; $(STOW) $(PKGS)
 restow: ; $(STOW) --restow $(PKGS)   # prune orphaned symlinks after renames
 unstow: ; $(STOW) --delete $(PKGS)
 list:   ; @echo $(PKGS)
+test:   ; node --test tests/quickshell/*.test.js   # pure-JS models behind the Quickshell drawers
 
 # ── System (root) config that stow cannot deliver ────────────────
 # Global DNS override for NetworkManager (Cloudflare). Not a stow package: needs root.
