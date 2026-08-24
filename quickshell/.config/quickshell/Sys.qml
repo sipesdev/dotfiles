@@ -2,6 +2,7 @@ pragma Singleton
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import Quickshell.Networking
 import Quickshell.Bluetooth
 
 // Shared session state + the long-running helpers that back it.
@@ -100,6 +101,31 @@ Singleton {
         // Keep it alive if `nmcli monitor` ever exits, same as the rfkill watcher.
         onRunningChanged: if (!running) running = true
     }
+
+    // ── Network (Quickshell.Networking, NetworkManager backend) ──────
+    // Native device/network objects shared by the bar pill and the Network drawer. Replaces
+    // the old 5 s `nmcli` strength poll: signalStrength is live.
+    readonly property bool wifiEnabled: Networking.wifiEnabled
+    function netDevice(type) {                       // first device of a type, preferring a connected one
+        var ds = Networking.devices.values, fallback = null;
+        for (var i = 0; i < ds.length; i++) {
+            var d = ds[i];
+            if (!d || d.type !== type) continue;
+            if (d.connected) return d;
+            if (!fallback) fallback = d;
+        }
+        return fallback;
+    }
+    readonly property var wifiDevice:  netDevice(DeviceType.Wifi)
+    readonly property var wiredDevice: netDevice(DeviceType.Wired)
+    readonly property var wifiNetwork: {
+        var nets = wifiDevice && wifiDevice.networks ? wifiDevice.networks.values : [];
+        for (var i = 0; i < nets.length; i++) if (nets[i] && nets[i].connected) return nets[i];
+        return null;
+    }
+    readonly property bool   wifiConnected: wifiNetwork !== null
+    readonly property string wifiSsid:      wifiNetwork ? wifiNetwork.name : ""
+    readonly property int    wifiStrength:  wifiNetwork ? Math.round(wifiNetwork.signalStrength * 100) : 0
 
     // ── Bluetooth (BlueZ) — shared by the bar pill and the drawer ────
     // Each device's `connected` read inside the binding is a tracked dependency, so the

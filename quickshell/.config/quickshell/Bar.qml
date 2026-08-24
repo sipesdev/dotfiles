@@ -56,6 +56,16 @@ PanelWindow {
             active: bar.openPopout === "bluetooth"
             onClicked: bar.togglePopout("bluetooth")
         }
+        BarIcon {
+            id: netIcon
+            anchors.verticalCenter: parent.verticalCenter
+            // Wired takes over the network slot when docked (Wi-Fi is auto-off then).
+            glyph: Sys.ethernetConnected ? Theme.iEthernet
+                 : Theme.wifiGlyph(Sys.wifiEnabled, Sys.wifiConnected, Sys.wifiStrength)
+            glyphColor: (Sys.ethernetConnected || Sys.wifiEnabled) ? Theme.text : Theme.dim
+            active: bar.openPopout === "network"
+            onClicked: bar.togglePopout("network")
+        }
         StatusButton {
             id: statusBtn
             anchors.verticalCenter: parent.verticalCenter
@@ -74,6 +84,7 @@ PanelWindow {
     StatusPowerCenter { barWindow: bar; key: "status"; anchorItem: statusBtn }
     PowerDrawer       { barWindow: bar; key: "power";  anchorItem: batteryIcon }
     BluetoothDrawer   { barWindow: bar; key: "bluetooth"; anchorItem: btIcon }
+    NetworkDrawer     { barWindow: bar; key: "network";   anchorItem: netIcon }
 
     // Notifications share the popouts' top-right corner, so an open popout holds the
     // stack: arrivals queue and visible cards freeze until it closes. Cleared on
