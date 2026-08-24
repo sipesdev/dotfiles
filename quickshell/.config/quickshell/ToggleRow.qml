@@ -31,22 +31,15 @@ Item {
             font.family: Theme.fontFamily
             font.pixelSize: Theme.fontSize
         }
-        Rectangle {                       // toggle pill
+        TogglePill {
             Layout.preferredWidth: 40
             Layout.preferredHeight: 22
-            radius: 11
-            color: r.on ? Theme.accent : Theme.elevated
-            Behavior on color { ColorAnimation { duration: 120 } }
-            Rectangle {
-                width: 18; height: 18; radius: 9
-                color: Theme.bright
-                anchors.verticalCenter: parent.verticalCenter
-                x: r.on ? parent.width - width - 2 : 2
-                Behavior on x { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
-            }
+            on: r.on
+            onToggled: r.toggled()
         }
     }
 
+    // Declared last so it sits above the pill's own MouseArea: one click, one toggled().
     MouseArea {
         anchors.fill: parent
         cursorShape: Qt.PointingHandCursor

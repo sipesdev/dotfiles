@@ -2,6 +2,7 @@ pragma Singleton
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import Quickshell.Bluetooth
 
 // Shared session state + the long-running helpers that back it.
 // Auto-resolved by filename (like Theme), so any component can read `Sys.*`.
@@ -98,6 +99,17 @@ Singleton {
         }
         // Keep it alive if `nmcli monitor` ever exits, same as the rfkill watcher.
         onRunningChanged: if (!running) running = true
+    }
+
+    // ── Bluetooth (BlueZ) — shared by the bar pill and the drawer ────
+    // Each device's `connected` read inside the binding is a tracked dependency, so the
+    // value flips the moment any device connects or drops.
+    readonly property var  btAdapter: Bluetooth.defaultAdapter
+    readonly property bool btOn: btAdapter ? btAdapter.enabled : false
+    readonly property bool btConnected: {
+        var ds = Bluetooth.devices.values;
+        for (var i = 0; i < ds.length; i++) if (ds[i] && ds[i].connected) return true;
+        return false;
     }
 
     Component.onCompleted: { sys.refresh(); sys.refreshEthernet(); }

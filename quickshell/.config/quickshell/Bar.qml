@@ -48,6 +48,14 @@ PanelWindow {
         spacing: 0   // pills carry their own padding; matches the left gap
 
         SysTray { anchors.verticalCenter: parent.verticalCenter }
+        BarIcon {
+            id: btIcon
+            anchors.verticalCenter: parent.verticalCenter
+            glyph: Theme.btGlyph(Sys.btOn, Sys.btConnected)
+            glyphColor: Sys.btConnected ? Theme.accent : (Sys.btOn ? Theme.text : Theme.dim)
+            active: bar.openPopout === "bluetooth"
+            onClicked: bar.togglePopout("bluetooth")
+        }
         StatusButton {
             id: statusBtn
             anchors.verticalCenter: parent.verticalCenter
@@ -65,6 +73,7 @@ PanelWindow {
     // Popouts (one drawer per module; each lines up under its pill)
     StatusPowerCenter { barWindow: bar; key: "status"; anchorItem: statusBtn }
     PowerDrawer       { barWindow: bar; key: "power";  anchorItem: batteryIcon }
+    BluetoothDrawer   { barWindow: bar; key: "bluetooth"; anchorItem: btIcon }
 
     // Notifications share the popouts' top-right corner, so an open popout holds the
     // stack: arrivals queue and visible cards freeze until it closes. Cleared on
