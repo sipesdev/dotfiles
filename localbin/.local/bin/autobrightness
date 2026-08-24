@@ -6,6 +6,14 @@
 # cleanly stops its sensor child when Quickshell terminates it.
 set -u
 
+# Quickshell starts this via Sys.autoBrightness but a `pkill -x quickshell` restart does not take
+# it down: the daemon is reparented and keeps driving the backlight against a shell that now says
+# auto-brightness is off. Watch the parent and leave with it (the EXIT trap below then stops the
+# sensor child).
+parent=$PPID
+( while kill -0 "$parent" 2>/dev/null; do sleep 2; done; kill -TERM "$$" 2>/dev/null ) &
+watchdog_pid=$!
+
 ALS=/sys/bus/iio/devices/iio:device0
 
 # Map a lux value to a backlight percent on a log curve:
@@ -51,7 +59,7 @@ fi
 # then kill monitor-sensor on any exit/termination.
 exec 3< <(monitor-sensor 2>/dev/null)
 sensor_pid=$!
-trap 'kill "$sensor_pid" 2>/dev/null' EXIT INT TERM
+trap 'kill "$sensor_pid" "$watchdog_pid" 2>/dev/null' EXIT INT TERM
 
 while IFS= read -r line <&3; do
     # Lines of interest: "Light changed: N (lux)"
