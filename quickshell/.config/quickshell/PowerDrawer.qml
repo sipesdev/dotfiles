@@ -18,10 +18,7 @@ BarDrawer {
     readonly property bool charging: state === UPowerDeviceState.Charging
     readonly property bool pluggedIn: !UPower.onBattery
     readonly property bool low: pct <= 10
-    readonly property var states: ({
-        Charging: UPowerDeviceState.Charging, Discharging: UPowerDeviceState.Discharging,
-        FullyCharged: UPowerDeviceState.FullyCharged, PendingCharge: UPowerDeviceState.PendingCharge
-    })
+    readonly property var states: ({ Charging: UPowerDeviceState.Charging, FullyCharged: UPowerDeviceState.FullyCharged })
 
     // Cycle count is sysfs-only (UPower does not expose it); read once per open.
     property int cycles: -1

@@ -20,7 +20,7 @@ test("formatWatts / formatWh", () => {
 });
 
 test("statusLine", () => {
-    const S = { Charging: 1, Discharging: 2, FullyCharged: 4, PendingCharge: 5 };
+    const S = { Charging: 1, FullyCharged: 4 };
     assert.equal(P.statusLine(1, true, 3900, 0, S), "Charging — 1h 05m until full");
     assert.equal(P.statusLine(1, true, 0, 0, S), "Charging");
     assert.equal(P.statusLine(4, true, 0, 0, S), "Fully charged");

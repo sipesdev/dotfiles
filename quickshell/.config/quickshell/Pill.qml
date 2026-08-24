@@ -10,7 +10,7 @@ Rectangle {
     signal clicked()
 
     // Never narrower than glyph + label + padding: a RowLayout may stretch a pill but
-    // must not squeeze its text into the border ("Performance" needs ~94 px of content).
+    // must not squeeze its text into the border ("Performance" needs ~98 px of content).
     Layout.fillWidth: true
     Layout.minimumWidth: implicitWidth
     implicitWidth: content.implicitWidth + 2 * Theme.pad
