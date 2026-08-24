@@ -8,7 +8,7 @@ import "PowerModel.js" as PowerModel
 // Percentages go through Theme.dispPct so the BIOS 80% charge cap reads as full.
 BarDrawer {
     id: pop
-    contentWidth: 320
+    contentWidth: 360
     spacing: Theme.pad
 
     readonly property var dev: UPower.displayDevice

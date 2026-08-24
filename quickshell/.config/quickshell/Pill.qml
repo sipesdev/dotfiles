@@ -9,7 +9,11 @@ Rectangle {
     property bool active: false
     signal clicked()
 
+    // Never narrower than glyph + label + padding: a RowLayout may stretch a pill but
+    // must not squeeze its text into the border ("Performance" needs ~94 px of content).
     Layout.fillWidth: true
+    Layout.minimumWidth: implicitWidth
+    implicitWidth: content.implicitWidth + 2 * Theme.pad
     implicitHeight: 30
     radius: Theme.radius
     color: ma.containsMouse ? Theme.elevated : Theme.bg
@@ -19,6 +23,7 @@ Rectangle {
     Behavior on border.color { ColorAnimation { duration: Theme.animFast } }
 
     Row {
+        id: content
         anchors.centerIn: parent
         spacing: 6
         Text {
