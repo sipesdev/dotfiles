@@ -66,6 +66,12 @@ PanelWindow {
             active: bar.openPopout === "network"
             onClicked: bar.togglePopout("network")
         }
+        AudioIcon {
+            id: audioIcon
+            anchors.verticalCenter: parent.verticalCenter
+            active: bar.openPopout === "audio"
+            onClicked: bar.togglePopout("audio")
+        }
         StatusButton {
             id: statusBtn
             anchors.verticalCenter: parent.verticalCenter
@@ -85,6 +91,7 @@ PanelWindow {
     PowerDrawer       { barWindow: bar; key: "power";  anchorItem: batteryIcon }
     BluetoothDrawer   { barWindow: bar; key: "bluetooth"; anchorItem: btIcon }
     NetworkDrawer     { barWindow: bar; key: "network";   anchorItem: netIcon }
+    AudioDrawer       { barWindow: bar; key: "audio";     anchorItem: audioIcon }
 
     // Notifications share the popouts' top-right corner, so an open popout holds the
     // stack: arrivals queue and visible cards freeze until it closes. Cleared on
