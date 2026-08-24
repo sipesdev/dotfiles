@@ -69,6 +69,7 @@ Singleton {
     readonly property int  gap:       6
     readonly property int  pad:       10
     readonly property int  notifWidth: 360      // matches the status center, so the stacks line up
+    readonly property int  wsSlot:     18        // fixed square per workspace: dot/digit swap never shifts neighbours
     readonly property int  shadowPad:  24       // window room a drawer's drop shadow renders into
     readonly property color shadow:    "#80000000"  // drop shadow behind the borderless drawers
 
