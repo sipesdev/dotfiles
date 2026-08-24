@@ -10,6 +10,7 @@ Rectangle {
     property bool active: false
     signal clicked()
     signal scrolled(int delta)
+    signal rightClicked()
 
     implicitWidth: label.implicitWidth + 2 * Theme.iconPad
     implicitHeight: Theme.pillHeight
@@ -30,8 +31,9 @@ Rectangle {
         id: ma
         anchors.fill: parent
         hoverEnabled: true
+        acceptedButtons: Qt.LeftButton | Qt.RightButton
         cursorShape: Qt.PointingHandCursor
-        onClicked: root.clicked()
+        onClicked: (mouse) => { if (mouse.button === Qt.RightButton) root.rightClicked(); else root.clicked(); }
         onWheel: (wheel) => root.scrolled(wheel.angleDelta.y)
     }
 }

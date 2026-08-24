@@ -55,6 +55,7 @@ PanelWindow {
             glyphColor: Sys.btConnected ? Theme.accent : (Sys.btOn ? Theme.text : Theme.dim)
             active: bar.openPopout === "bluetooth"
             onClicked: bar.togglePopout("bluetooth")
+            onRightClicked: Sys.setBluetoothPower(!Sys.btOn)   // Omarchy: right-click flips the radio
         }
         BarIcon {
             id: netIcon

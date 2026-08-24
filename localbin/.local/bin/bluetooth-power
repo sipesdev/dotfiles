@@ -1,0 +1,37 @@
+#!/bin/bash
+# Bluetooth radio on/off through the rfkill soft block, not BlueZ's Powered property: BlueZ never
+# persists Powered (an adapter switched off with bluetoothctl is back on after a reboot), while
+# systemd-rfkill restores the block early at boot. Unblocking lets bluetoothd (AutoEnable) power the
+# adapter up by itself; a direct `bluetoothctl power on` is the fallback for an adapter that was
+# powered down without a block. Explicit direction only: the drawer's switch follows BlueZ's
+# confirmed state, so a toggle issued twice inside the confirmation window would undo itself.
+#   bluetooth-power on | off
+set -uo pipefail
+
+powered() { [[ $(timeout 2s bluetoothctl show 2>/dev/null) == *"Powered: yes"* ]]; }
+# One deadline around the whole wait: a probe can sit on its own timeout when D-Bus is wedged.
+wait_powered() {
+    local deadline=$((SECONDS + 2))
+    while :; do
+        powered && return 0
+        (( SECONDS < deadline )) || return 1
+        sleep 0.2
+    done
+}
+
+case "${1:-}" in
+    on)
+        rfkill unblock bluetooth
+        wait_powered && exit 0
+        timeout 5s bluetoothctl power on >/dev/null 2>&1
+        wait_powered && exit 0
+        echo "bluetooth-power: adapter did not come up" >&2
+        exit 1 ;;
+    off)
+        # No `bluetoothctl power off` to go with it: the block already drops the adapter to
+        # Powered: no, and it is the half that survives the reboot.
+        rfkill block bluetooth ;;
+    *)
+        echo "usage: bluetooth-power on|off" >&2
+        exit 1 ;;
+esac
