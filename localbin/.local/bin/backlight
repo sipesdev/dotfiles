@@ -1,0 +1,39 @@
+#!/bin/bash
+# Backlight control with a ceiling below the panel's nominal maximum. On this Framework 16
+# (amdgpu_bl1, max_brightness 65535, kernel 7.1.8) any raw value from ~64880 (99%) upward makes
+# the panel go DARK -- actual_brightness reads back 0 -- while 64224 (98%) still delivers full
+# output (actual_brightness 65535). Measured 2026-08-24. Every writer of the backlight goes
+# through here (Display drawer, brightness keys, autobrightness) so none can land in the dark
+# band, and "100" means "as bright as the panel can actually go".
+#
+#   backlight get          current level, 0-100 of the safe range (linear)
+#   backlight set N        set level N, 0-100 of the safe range (linear)     -- Display drawer
+#   backlight up|down      +-5 on the exponential curve the keys always used  -- XF86MonBrightness*
+#   backlight set-exp N    N on that exponential curve (brightnessctl -e4)    -- autobrightness
+set -euo pipefail
+
+state=$(brightnessctl -m -c backlight | head -n 1)      # device,class,current,percent,max
+cur=$(cut -d, -f3 <<<"$state")
+max=$(cut -d, -f5 <<<"$state")
+cap=$(awk -v m="$max" 'BEGIN { printf "%d", m * 0.98 }')   # 64224 on amdgpu_bl1: last raw value with full output
+floor=1                                                     # never fully off
+
+usage() { echo "usage: backlight get | set N | set-exp N | up | down" >&2; exit 1; }
+apply() { brightnessctl -q -c backlight set "$1"; }         # raw units
+clamp() { local v=$1; if (( v < floor )); then v=$floor; fi; if (( v > cap )); then v=$cap; fi; echo "$v"; }
+
+# Linear: N% of the safe range.
+lin_to_raw() { awk -v n="$1" -v c="$cap" 'BEGIN { if (n < 0) n = 0; if (n > 100) n = 100; printf "%d", n / 100 * c + 0.5 }'; }
+raw_to_lin() { awk -v r="$1" -v c="$cap" 'BEGIN { p = r / c * 100; if (p > 100) p = 100; printf "%d", p + 0.5 }'; }
+# Exponential (brightnessctl -e4): raw = cap * (N/100)^4, so low levels keep fine steps.
+exp_to_raw() { awk -v n="$1" -v c="$cap" 'BEGIN { if (n < 0) n = 0; if (n > 100) n = 100; printf "%d", c * (n / 100) ^ 4 + 0.5 }'; }
+raw_to_exp() { awk -v r="$1" -v c="$cap" 'BEGIN { if (r > c) r = c; printf "%d", (r / c) ^ 0.25 * 100 + 0.5 }'; }
+
+case "${1:-}" in
+    get)     raw_to_lin "$cur" ;;
+    set)     [[ ${2:-} =~ ^[0-9]+$ ]] || usage; apply "$(clamp "$(lin_to_raw "$2")")" ;;
+    set-exp) [[ ${2:-} =~ ^[0-9]+$ ]] || usage; apply "$(clamp "$(exp_to_raw "$2")")" ;;
+    up)      apply "$(clamp "$(exp_to_raw "$(( $(raw_to_exp "$cur") + 5 ))")")" ;;
+    down)    apply "$(clamp "$(exp_to_raw "$(( $(raw_to_exp "$cur") - 5 ))")")" ;;
+    *)       usage ;;
+esac

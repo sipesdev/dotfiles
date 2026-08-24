@@ -129,8 +129,13 @@ it fails to load, notifications are down until it loads again. That is what make
 `quickshell/` more expensive than it looks — restart it and check the log (above) after any QML edit.
 
 ## Helper scripts (`localbin/`)
+- `backlight` — the only writer of the panel backlight: `get` / `set N` (linear, 0-100 of the safe
+  range; the Display drawer), `up` / `down` (the brightness keys; exponential steps as before),
+  `set-exp N` (autobrightness). Caps at 98% of `max_brightness` because `amdgpu_bl1` goes dark
+  (`actual_brightness` 0) from raw ~64880 up; "100" is the brightest the panel actually reaches.
 - `autobrightness` — ALS-driven backlight. Does a one-shot read of `/sys/.../in_illuminance_raw` at start
   (because `monitor-sensor` only emits on change), then streams. Started/stopped by `Sys.autoBrightness`.
+  Applies levels via `backlight set-exp`.
 - `archwiki` — searches/renders the offline Arch Wiki (`arch-wiki-docs` package, mirror under
   `/usr/share/doc/arch-wiki/html/en`). `archwiki <query>` searches, `-t` titles only, `-r` renders an
   article to plain text via `python` (no lynx/w3m/pandoc on this box).

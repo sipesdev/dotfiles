@@ -2,6 +2,7 @@
 # Ambient-light → backlight, via iio-sensor-proxy's monitor-sensor.
 # Started/stopped by Quickshell (Sys.autoBrightness). Maps lux to a backlight
 # percentage on a log curve with clamps + hysteresis to avoid flicker, and
+# applies it through the backlight wrapper (exponential curve, capped below the panel's dark band), then
 # cleanly stops its sensor child when Quickshell terminates it.
 set -u
 
@@ -26,7 +27,7 @@ apply() {
     local pct=$1
     local d=$(( pct > last ? pct - last : last - pct ))
     if (( last < 0 || d >= 3 )); then
-        brightnessctl -e4 -n2 set "${pct}%" >/dev/null 2>&1
+        "$HOME/.local/bin/backlight" set-exp "$pct" >/dev/null 2>&1
         last=$pct
     fi
 }

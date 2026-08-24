@@ -1,17 +1,21 @@
+import Quickshell
 import Quickshell.Io
 import QtQuick
 import QtQuick.Layouts
 
-// Display module: backlight slider + auto-brightness toggle (brightnessctl / Sys.autoBrightness).
+// Display module: backlight slider + auto-brightness toggle. All writes go through the backlight
+// wrapper, which owns the panel's safe ceiling: 100 here is the brightest the panel actually reaches.
 BarDrawer {
     id: disp
     contentWidth: 300
     spacing: 4
 
+    readonly property string home: Quickshell.env("HOME")
+
     property int brightness: 50
     Process {
         id: brightRead
-        command: ["sh", "-c", "brightnessctl -m | cut -d, -f4 | tr -d '%\\n'"]
+        command: [disp.home + "/.local/bin/backlight", "get"]
         stdout: StdioCollector {
             onStreamFinished: { var n = parseInt(text); if (!isNaN(n)) disp.brightness = n }
         }
@@ -19,7 +23,7 @@ BarDrawer {
     Process { id: brightSet }
     function setBrightness(pct) {
         disp.brightness = pct;
-        brightSet.command = ["brightnessctl", "set", pct + "%"];
+        brightSet.command = [disp.home + "/.local/bin/backlight", "set", String(pct)];
         brightSet.running = true;
     }
     // Re-read brightness whenever auto-brightness toggles, so the slider snaps to
