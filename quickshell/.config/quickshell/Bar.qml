@@ -72,6 +72,14 @@ PanelWindow {
             active: bar.openPopout === "audio"
             onClicked: bar.togglePopout("audio")
         }
+        BarIcon {
+            id: displayIcon
+            anchors.verticalCenter: parent.verticalCenter
+            glyph: Theme.iSun
+            glyphColor: Sys.autoBrightness ? Theme.accent : Theme.text
+            active: bar.openPopout === "display"
+            onClicked: bar.togglePopout("display")
+        }
         StatusButton {
             id: statusBtn
             anchors.verticalCenter: parent.verticalCenter
@@ -92,6 +100,7 @@ PanelWindow {
     BluetoothDrawer   { barWindow: bar; key: "bluetooth"; anchorItem: btIcon }
     NetworkDrawer     { barWindow: bar; key: "network";   anchorItem: netIcon }
     AudioDrawer       { barWindow: bar; key: "audio";     anchorItem: audioIcon }
+    DisplayDrawer     { barWindow: bar; key: "display";   anchorItem: displayIcon }
 
     // Notifications share the popouts' top-right corner, so an open popout holds the
     // stack: arrivals queue and visible cards freeze until it closes. Cleared on
