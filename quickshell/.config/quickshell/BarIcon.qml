@@ -2,12 +2,14 @@ import QtQuick
 
 // A bar pill with one glyph: the module icons in the right cluster. `active` keeps the
 // hover fill on while the pill's drawer is open, so the open module reads at a glance.
+// Wheel events are re-emitted as scrolled(delta) for pills that want them (the audio pill).
 Rectangle {
     id: root
     property string glyph: ""
     property color glyphColor: Theme.text
     property bool active: false
     signal clicked()
+    signal scrolled(int delta)
 
     implicitWidth: label.implicitWidth + 2 * Theme.iconPad
     implicitHeight: Theme.pillHeight
@@ -30,5 +32,6 @@ Rectangle {
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
         onClicked: root.clicked()
+        onWheel: (wheel) => root.scrolled(wheel.angleDelta.y)
     }
 }
