@@ -85,6 +85,21 @@ No `qmldir`. `Theme.qml`, `Sys.qml` and `Notifs.qml` are `pragma Singleton`, aut
 holds cross-component state (airplane mode mirrors `rfkill`; auto-brightness owns the `autobrightness`
 process).
 
+### Bar modules (`BarDrawer` / `BarIcon`)
+The right cluster is one pill per module (`BarIcon`; `Battery.qml` for power) and one drawer per
+module: `BluetoothDrawer`, `NetworkDrawer`, `AudioDrawer`, `DisplayDrawer`, `PowerDrawer`, all
+`BarDrawer { barWindow: bar; key: "<name>"; anchorItem: <pill> }`. `BarDrawer.qml` owns the
+popout shell (welded under the bar, `reveal` slide, `DrawerShadow`, focus grab); `Bar.qml` owns
+arbitration: `openPopout` holds the open key, pills call `togglePopout(key)`, a drawer's grab
+calls `closePopout(key)`, and a drawer is `shown` exactly while `openPopout === key` (never write
+`shown`). The bar window is inside every grab so pill clicks never clear it. `Sys.qml` exposes the
+native NetworkManager / BlueZ state (`wifiDevice`, `wifiNetwork`, `wifiStrength`, `btAdapter`,
+`btConnected`) that both the pills and drawers read. Primitives: `DrawerHero`, `SectionHeader`,
+`ListRow`, `SliderRow`, `TogglePill`/`ToggleRow`, `Pill`, `PowerBtn`, `BarSlider`. Logic that can be
+pure lives in `NetModel.js` / `AudioModel.js` / `PowerModel.js` / `BtModel.js` and is tested by
+`make test` from `tests/quickshell/` (deliberately outside every stow package). The network drawer
+polls `~/.local/bin/network-probe` (1.5 s) and `~/.local/bin/wifi-band` (4 s) only while open.
+
 **Do not trust the hot reload.** Quickshell watches the *inode*, and an editor that saves atomically
 (write temp + rename — which includes most tools) replaces it, so the watcher ends up on a deleted file:
 the FIRST save reloads, every save after it is silently ignored and you are testing stale QML. Restart
@@ -121,6 +136,10 @@ it fails to load, notifications are down until it loads again. That is what make
 - `archwiki` — searches/renders the offline Arch Wiki (`arch-wiki-docs` package, mirror under
   `/usr/share/doc/arch-wiki/html/en`). `archwiki <query>` searches, `-t` titles only, `-r` renders an
   article to plain text via `python` (no lynx/w3m/pandoc on this box).
+- `network-probe` — default-route interface snapshot (ip/gateway/rx/tx bytes/type + gateway and 1.1.1.1
+  ping) as `key\tvalue` lines; nothing when there is no route.
+- `wifi-band` — show (`band`/`available`/`selected`) or pin (`auto|2.4|5|6`) the active Wi-Fi profile's
+  `802-11-wireless.band`, reverting if the reconnect fails.
 - `wifi-connect`, `web2app`, `web2app-remove`.
 
 ## Conventions
@@ -141,3 +160,5 @@ use the autolinking form only when the mention is deliberately meant for upstrea
 source repos**. Only the named packages are stowed, and `.gitignore` backstops secrets (`.env`, keys,
 `*_history`, caches). **Never commit tokens, keys, or passwords** — scripts here read credentials at
 runtime (e.g. `wifi-connect` prompts via zenity), nothing is hardcoded. Keep it that way.
+- **System files (`etc/`)** are not stowed: `make dns` installs `etc/NetworkManager/conf.d/20-dns.conf`
+  with sudo (Cloudflare global DNS, no switcher by design); verify with `grep nameserver /etc/resolv.conf`.

@@ -39,7 +39,7 @@ PanelWindow {
         anchors.centerIn: parent
     }
 
-    // ── RIGHT: tray + status/power + battery ─────────────────────────
+    // ── RIGHT: tray + modules (bluetooth, network, audio, display, power) ──
     Row {
         id: right
         anchors.right: parent.right
@@ -80,12 +80,6 @@ PanelWindow {
             active: bar.openPopout === "display"
             onClicked: bar.togglePopout("display")
         }
-        StatusButton {
-            id: statusBtn
-            anchors.verticalCenter: parent.verticalCenter
-            active: bar.openPopout === "status"
-            onToggled: bar.togglePopout("status")
-        }
         Battery {
             id: batteryIcon
             anchors.verticalCenter: parent.verticalCenter
@@ -95,7 +89,6 @@ PanelWindow {
     }
 
     // Popouts (one drawer per module; each lines up under its pill)
-    StatusPowerCenter { barWindow: bar; key: "status"; anchorItem: statusBtn }
     PowerDrawer       { barWindow: bar; key: "power";  anchorItem: batteryIcon }
     BluetoothDrawer   { barWindow: bar; key: "bluetooth"; anchorItem: btIcon }
     NetworkDrawer     { barWindow: bar; key: "network";   anchorItem: netIcon }
