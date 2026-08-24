@@ -17,13 +17,19 @@ This is my personally managed dotfiles for my Arch Linux installation. It comes 
 - `qt`         → `~/.config/{qt5ct,qt6ct,Kvantum}`         (Kvantum matte-black for Qt5/Qt6)
 - `uwsm`       → `~/.config/uwsm/env`                      (login-phase env; activates the Qt theme)
 - `alacritty`  → `~/.config/alacritty`                     (matte-black terminal; JetBrainsMono Nerd Font)
+- `etc`        → `/etc/NetworkManager/conf.d` (root; applied by `make dns`, not stowed)
 
 ## Deploy on a new machine
 ```sh
 sudo pacman -S --needed stow git zenity adw-gtk-theme papirus-icon-theme kvantum kvantum-qt5 qt5ct qt6ct hyprland quickshell
 git clone git@github.com:sipesdev/dotfiles.git ~/Projects/dotfiles
 cd ~/Projects/dotfiles && bash install.sh   # or: make stow
+make dns                                    # root: Cloudflare DNS for every connection (etc/NetworkManager/conf.d/20-dns.conf)
 ```
+
+`make dns` installs the NetworkManager global-DNS override (`1.1.1.1` / `1.0.0.1`, overriding
+DHCP for every present and future connection -- no switcher by design) and reloads NetworkManager.
+Verify with `grep nameserver /etc/resolv.conf`; if the reload did not take, `sudo systemctl restart NetworkManager`.
 
 ## License
 Released under the [GNU General Public License v3.0](LICENSE).
