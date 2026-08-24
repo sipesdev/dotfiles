@@ -85,6 +85,17 @@ No `qmldir`. `Theme.qml`, `Sys.qml` and `Notifs.qml` are `pragma Singleton`, aut
 holds cross-component state (ethernet/Wi-Fi hand-off, native NetworkManager and BlueZ state; auto-brightness owns the `autobrightness`
 process).
 
+**Do not trust the hot reload.** Quickshell watches the *inode*, and an editor that saves atomically
+(write temp + rename — which includes most tools) replaces it, so the watcher ends up on a deleted file:
+the FIRST save reloads, every save after it is silently ignored and you are testing stale QML. Restart
+instead, and verify:
+
+    pkill -x quickshell; sleep 1; setsid nohup quickshell >/dev/null 2>&1 < /dev/null &
+
+Verify with `quickshell log` (the running instance sends stdout/stderr to `/dev/null`, but logs persist on
+disk): look for `Configuration Loaded` with no `error` lines after it — ignore the recurring
+`dbus`/`StatusNotifierItem`/`portal` warnings, which are benign.
+
 ### Bar modules (`BarDrawer` / `BarIcon`)
 The right cluster is one pill per module (`BarIcon`; `Battery.qml` for power) and one drawer per
 module: `BluetoothDrawer`, `NetworkDrawer`, `AudioDrawer`, `DisplayDrawer`, `PowerDrawer`, all
@@ -99,17 +110,6 @@ native NetworkManager / BlueZ state (`wifiDevice`, `wifiNetwork`, `wifiStrength`
 pure lives in `NetModel.js` / `AudioModel.js` / `PowerModel.js` / `BtModel.js` and is tested by
 `make test` from `tests/quickshell/` (deliberately outside every stow package). The network drawer
 polls `~/.local/bin/network-probe` (1.5 s) and `~/.local/bin/wifi-band` (4 s) only while open.
-
-**Do not trust the hot reload.** Quickshell watches the *inode*, and an editor that saves atomically
-(write temp + rename — which includes most tools) replaces it, so the watcher ends up on a deleted file:
-the FIRST save reloads, every save after it is silently ignored and you are testing stale QML. Restart
-instead, and verify:
-
-    pkill -x quickshell; sleep 1; setsid nohup quickshell >/dev/null 2>&1 < /dev/null &
-
-Verify with `quickshell log` (the running instance sends stdout/stderr to `/dev/null`, but logs persist on
-disk): look for `Configuration Loaded` with no `error` lines after it — ignore the recurring
-`dbus`/`StatusNotifierItem`/`portal` warnings, which are benign.
 
 ### Notifications (`Notifs.qml`) — Quickshell owns the bus, not mako
 `Notifs.qml` is the notification daemon: it owns `org.freedesktop.Notifications`, caps every notification

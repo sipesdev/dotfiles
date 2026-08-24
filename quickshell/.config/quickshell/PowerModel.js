@@ -18,7 +18,7 @@ function formatWh(wh) {
     return Math.round(v) + " Wh";
 }
 // S carries the UPowerDeviceState enum values from QML so this file stays Node-loadable.
-// Wording matches the previous BatteryPopup (em dash / middle dot are fine; only emojis are banned).
+// Wording matches the previous battery popout (em dash / middle dot are fine; only emojis are banned).
 function statusLine(state, pluggedIn, timeToFull, timeToEmpty, S) {
     var e = S || {};
     if (state === e.Charging) {
