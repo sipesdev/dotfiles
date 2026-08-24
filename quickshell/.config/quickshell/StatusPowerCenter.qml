@@ -1,54 +1,14 @@
-import Quickshell
-import Quickshell.Hyprland
 import Quickshell.Services.Pipewire
-import Quickshell.Networking
-import Quickshell.Bluetooth
 import Quickshell.Io
 import QtQuick
 import QtQuick.Layouts
 
-PanelWindow {
+// Interim: the old quick-settings content on the shared drawer shell (retired in Task 11).
+BarDrawer {
     id: center
-    property bool shown: false
-    readonly property int contentWidth: 360
+    contentWidth: 360
 
-    // How far the card is out of the bar: 0 = fully behind it, 1 = flush against it. The
-    // slide animates THIS rather than the card's y directly. Binding y to `shown ? 0 : -height`
-    // instead makes the Behavior fire on any height change, including one that happens while
-    // the popout is CLOSED -- the ethernet row appearing, or the Wi-Fi list rescanning (its
-    // timer keeps running while collapsed). y would then animate from -oldHeight to -newHeight,
-    // and for those 160ms the surface maps and flashes a strip of card out from under the bar.
-    property real reveal: shown ? 1 : 0
-    Behavior on reveal { NumberAnimation { duration: Theme.animMed; easing.type: Easing.OutCubic } }
-
-    // Stay mapped while shown OR while the slide-out is still in flight, so the
-    // layer surface only unmaps once the card is fully hidden behind the bar again.
-    visible: shown || reveal > 0
-
-    // margins.top: 0 welds the surface to the bar. A top-anchored panel with exclusiveZone 0
-    // is placed below the bar's exclusive zone, so the surface top sits at the bar's bottom
-    // edge. The window spans to the screen edge and is padded on the left and bottom so the
-    // drop shadow has room; the card keeps its gap from the edge via its own rightMargin.
-    anchors { top: true; right: true }
-    margins.top: 0
-    margins.right: 0
-    implicitWidth: contentWidth + Theme.gap + Theme.shadowPad
-    implicitHeight: card.implicitHeight + Theme.shadowPad
-    color: "transparent"
-    exclusiveZone: 0
-
-    // Dismiss when the user clicks outside the popout.
-    HyprlandFocusGrab {
-        windows: [center]
-        active: center.shown
-        onCleared: center.shown = false
-    }
-
-    onShownChanged: if (shown) {
-        brightRead.running = true;
-        Networking.scannerEnabled = true;
-        refreshWifi();
-    }
+    onShownChanged: if (shown) brightRead.running = true
 
     // ── Audio (Pipewire) ─────────────────────────────────────────────
     PwObjectTracker { objects: [Pipewire.defaultAudioSink] }
@@ -99,221 +59,145 @@ PanelWindow {
         onTriggered: brightRead.running = true
     }
 
-    // WiFi radio via nmcli (clears rfkill soft-block reliably, both directions).
-    Process { id: wifiCtl }
-    function setWifi(on) {
-        wifiCtl.command = ["nmcli", "radio", "wifi", on ? "on" : "off"];
-        wifiCtl.running = true;
+    Text {
+        text: "Quick Settings"
+        color: Theme.dim
+        font.family: Theme.fontFamily
+        font.pixelSize: Theme.fontSize - 1
     }
 
-    // ── WiFi (NetworkManager) ────────────────────────────────────────
-    property string wifiSsid: ""
-    function refreshWifi() {
-        var s = "";
-        var nets = Networking.networks;
-        if (nets && nets.values) {
-            for (var i = 0; i < nets.values.length; i++) {
-                if (nets.values[i].connected) { s = nets.values[i].name; break; }
+    // ── Volume ───────────────────────────────────────────────
+    RowLayout {
+        Layout.fillWidth: true
+        spacing: Theme.pad
+        Text {
+            Layout.preferredWidth: 22
+            horizontalAlignment: Text.AlignHCenter
+            text: Theme.volGlyph(center.sinkAudio ? center.sinkAudio.volume : 0,
+                                 center.sinkAudio ? center.sinkAudio.muted : false)
+            color: center.sinkAudio && center.sinkAudio.muted ? Theme.dim : Theme.text
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSize + 2
+            MouseArea {
+                anchors.fill: parent
+                cursorShape: Qt.PointingHandCursor
+                onClicked: if (center.sinkAudio) center.sinkAudio.muted = !center.sinkAudio.muted
             }
         }
-        center.wifiSsid = s;
-    }
-    Connections {
-        target: Networking
-        function onWifiEnabledChanged() { center.refreshWifi() }
-    }
-
-    // ── Bluetooth (BlueZ) ────────────────────────────────────────────
-    readonly property var btAdapter: Bluetooth.defaultAdapter
-    function btConnectedName() {
-        var ds = Bluetooth.devices;
-        if (ds && ds.values) {
-            for (var i = 0; i < ds.values.length; i++) {
-                if (ds.values[i].connected) return ds.values[i].name;
+        BarSlider {
+            Layout.fillWidth: true
+            enabled: !(center.sinkAudio && center.sinkAudio.muted)
+            value: center.volumeLevel
+            onMoved: (v) => {
+                center.volumeLevel = v;                             // optimistic, synchronous → deterministic glide
+                if (center.sinkAudio) center.sinkAudio.volume = v;  // apply to Pipewire (async)
             }
         }
-        return "";
+        Text {
+            Layout.preferredWidth: 38
+            horizontalAlignment: Text.AlignRight
+            text: Math.round(center.volumeLevel * 100) + "%"
+            color: Theme.dim
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSize - 1
+        }
     }
 
-    // Drop shadow, cast from the card's shape only, tracking the card as it slides.
-    DrawerShadow {
-        width: center.contentWidth
-        height: card.implicitHeight
-        anchors.right: parent.right
-        anchors.rightMargin: Theme.gap
-        y: card.y
-        topLeftRadius:  0
-        topRightRadius: 0
-    }
-
-    Rectangle {
-        id: card
-        width: center.contentWidth
-        anchors.right: parent.right
-        anchors.rightMargin: Theme.gap
-        implicitHeight: col.implicitHeight + 2 * Theme.pad
-        // Square top corners weld the card to the bar; only the bottom is rounded.
-        topLeftRadius:     0
-        topRightRadius:    0
-        bottomLeftRadius:  Theme.radius
-        bottomRightRadius: Theme.radius
-        // Bar material sliding out of the bar: no border, matching the notifications.
-        color: Theme.bar
-
-        // Slide the popout out of the bar on open and back behind it on close. At reveal 0
-        // the card sits entirely above the surface's top edge, so the layer surface clips it
-        // and it reads as hiding behind the bar. Deriving y from `reveal` (which is what
-        // animates) rather than animating y itself keeps a height change while closed an
-        // instant, silent reposition -- see the note on `reveal`.
-        y: -height * (1 - center.reveal)
-
-        ColumnLayout {
-            id: col
-            anchors.fill: parent
-            anchors.margins: Theme.pad
-            spacing: Theme.pad
-
-            Text {
-                text: "Quick Settings"
-                color: Theme.dim
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSize - 1
-            }
-
-            // ── Volume ───────────────────────────────────────────────
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: Theme.pad
-                Text {
-                    Layout.preferredWidth: 22
-                    horizontalAlignment: Text.AlignHCenter
-                    text: Theme.volGlyph(center.sinkAudio ? center.sinkAudio.volume : 0,
-                                         center.sinkAudio ? center.sinkAudio.muted : false)
-                    color: center.sinkAudio && center.sinkAudio.muted ? Theme.dim : Theme.text
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSize + 2
-                    MouseArea {
-                        anchors.fill: parent
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: if (center.sinkAudio) center.sinkAudio.muted = !center.sinkAudio.muted
-                    }
-                }
-                BarSlider {
-                    Layout.fillWidth: true
-                    enabled: !(center.sinkAudio && center.sinkAudio.muted)
-                    value: center.volumeLevel
-                    onMoved: (v) => {
-                        center.volumeLevel = v;                             // optimistic, synchronous → deterministic glide
-                        if (center.sinkAudio) center.sinkAudio.volume = v;  // apply to Pipewire (async)
-                    }
-                }
-                Text {
-                    Layout.preferredWidth: 38
-                    horizontalAlignment: Text.AlignRight
-                    text: Math.round(center.volumeLevel * 100) + "%"
-                    color: Theme.dim
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSize - 1
-                }
-            }
-
-            // ── Brightness ───────────────────────────────────────────
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: Theme.pad
-                Text {
-                    Layout.preferredWidth: 22
-                    horizontalAlignment: Text.AlignHCenter
-                    text: Theme.iSun
-                    color: Sys.autoBrightness ? Theme.accent : Theme.text
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSize + 2
-                    MouseArea {
-                        anchors.fill: parent
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: Sys.autoBrightness = !Sys.autoBrightness
-                    }
-                }
-                BarSlider {
-                    id: brightSlider
-                    Layout.fillWidth: true
-                    enabled: !Sys.autoBrightness
-                    fill: Theme.accent2
-                    value: center.brightness / 100
-                    onMoved: (v) => center.setBrightness(Math.max(1, Math.round(v * 100)))
-                }
-                Text {
-                    Layout.preferredWidth: 38
-                    horizontalAlignment: Text.AlignRight
-                    text: center.brightness + "%"
-                    color: Theme.dim
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSize - 1
-                }
-            }
-
-            Rectangle { Layout.fillWidth: true; height: 1; color: Theme.elevated }
-
-            // ── Ethernet (wired) — status only; NM handles it, Wi-Fi auto-off ──
-            RowLayout {
-                Layout.fillWidth: true
-                visible: Sys.ethernetConnected
-                spacing: Theme.pad
-                Text {
-                    Layout.preferredWidth: 22
-                    horizontalAlignment: Text.AlignHCenter
-                    text: Theme.iEthernet
-                    color: Theme.text
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSize + 2
-                }
-                Text {
-                    Layout.fillWidth: true
-                    text: "Ethernet"
-                    color: Theme.text
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSize
-                }
-                Text {
-                    text: Sys.ethernetName
-                    color: Theme.dim
-                    elide: Text.ElideRight
-                    Layout.maximumWidth: 160
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSize - 1
-                }
-            }
-
-            // ── WiFi (toggle + network picker) — locked out in airplane mode ──
-            WifiSection {
-                Layout.fillWidth: true
-                enabled: !Sys.airplaneMode
-                opacity: Sys.airplaneMode ? 0.45 : 1
-            }
-
-            // ── Bluetooth (toggle + device picker) — locked out in airplane mode ──
-            BtSection {
-                Layout.fillWidth: true
-                enabled: !Sys.airplaneMode
-                opacity: Sys.airplaneMode ? 0.45 : 1
-            }
-
-            Rectangle { Layout.fillWidth: true; height: 1; color: Theme.elevated }
-
-            // ── Power / session row ──────────────────────────────────
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: Theme.gap
-                PowerBtn { glyph: Theme.iLock;    cmd: ["loginctl", "lock-session"] }
-                PowerBtn { glyph: Theme.iSuspend; cmd: ["systemctl", "suspend"] }
-                PowerBtn {
-                    glyph:  Theme.iAirplane
-                    active: Sys.airplaneMode
-                    action: () => Sys.toggleAirplane()
-                }
-                PowerBtn { glyph: Theme.iReboot;  cmd: ["systemctl", "reboot"] }
-                PowerBtn { glyph: Theme.iPower;   cmd: ["systemctl", "poweroff"]; danger: true }
+    // ── Brightness ───────────────────────────────────────────
+    RowLayout {
+        Layout.fillWidth: true
+        spacing: Theme.pad
+        Text {
+            Layout.preferredWidth: 22
+            horizontalAlignment: Text.AlignHCenter
+            text: Theme.iSun
+            color: Sys.autoBrightness ? Theme.accent : Theme.text
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSize + 2
+            MouseArea {
+                anchors.fill: parent
+                cursorShape: Qt.PointingHandCursor
+                onClicked: Sys.autoBrightness = !Sys.autoBrightness
             }
         }
+        BarSlider {
+            id: brightSlider
+            Layout.fillWidth: true
+            enabled: !Sys.autoBrightness
+            fill: Theme.accent2
+            value: center.brightness / 100
+            onMoved: (v) => center.setBrightness(Math.max(1, Math.round(v * 100)))
+        }
+        Text {
+            Layout.preferredWidth: 38
+            horizontalAlignment: Text.AlignRight
+            text: center.brightness + "%"
+            color: Theme.dim
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSize - 1
+        }
+    }
+
+    Rectangle { Layout.fillWidth: true; height: 1; color: Theme.elevated }
+
+    // ── Ethernet (wired) — status only; NM handles it, Wi-Fi auto-off ──
+    RowLayout {
+        Layout.fillWidth: true
+        visible: Sys.ethernetConnected
+        spacing: Theme.pad
+        Text {
+            Layout.preferredWidth: 22
+            horizontalAlignment: Text.AlignHCenter
+            text: Theme.iEthernet
+            color: Theme.text
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSize + 2
+        }
+        Text {
+            Layout.fillWidth: true
+            text: "Ethernet"
+            color: Theme.text
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSize
+        }
+        Text {
+            text: Sys.ethernetName
+            color: Theme.dim
+            elide: Text.ElideRight
+            Layout.maximumWidth: 160
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSize - 1
+        }
+    }
+
+    // ── WiFi (toggle + network picker) — locked out in airplane mode ──
+    WifiSection {
+        Layout.fillWidth: true
+        enabled: !Sys.airplaneMode
+        opacity: Sys.airplaneMode ? 0.45 : 1
+    }
+
+    // ── Bluetooth (toggle + device picker) — locked out in airplane mode ──
+    BtSection {
+        Layout.fillWidth: true
+        enabled: !Sys.airplaneMode
+        opacity: Sys.airplaneMode ? 0.45 : 1
+    }
+
+    Rectangle { Layout.fillWidth: true; height: 1; color: Theme.elevated }
+
+    // ── Power / session row ──────────────────────────────────
+    RowLayout {
+        Layout.fillWidth: true
+        spacing: Theme.gap
+        PowerBtn { glyph: Theme.iLock;    cmd: ["loginctl", "lock-session"] }
+        PowerBtn { glyph: Theme.iSuspend; cmd: ["systemctl", "suspend"] }
+        PowerBtn {
+            glyph:  Theme.iAirplane
+            active: Sys.airplaneMode
+            action: () => Sys.toggleAirplane()
+        }
+        PowerBtn { glyph: Theme.iReboot;  cmd: ["systemctl", "reboot"] }
+        PowerBtn { glyph: Theme.iPower;   cmd: ["systemctl", "poweroff"]; danger: true }
     }
 }

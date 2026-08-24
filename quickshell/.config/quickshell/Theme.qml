@@ -63,9 +63,57 @@ Singleton {
     readonly property string iAirplane: String.fromCodePoint(0xF001D)  // md-airplane (orange when active)
     readonly property string iEthernet: String.fromCodePoint(0xF0200)  // md-ethernet (wired link)
 
+    // Module glyphs (nf-md-*). Verified present in JetBrainsMono Nerd Font 3.5.
+    readonly property string iCheck:          String.fromCodePoint(0xF012C)  // md-check (default device)
+    readonly property string iForget:         String.fromCodePoint(0xF0159)  // md-close-circle (forget network)
+    readonly property string iMic:            String.fromCodePoint(0xF036C)  // md-microphone
+    readonly property string iMicOff:         String.fromCodePoint(0xF036D)  // md-microphone-off
+    readonly property string iSpeaker:        String.fromCodePoint(0xF04C3)  // md-speaker
+    readonly property string iHeadphones:     String.fromCodePoint(0xF02CB)  // md-headphones
+    readonly property string iHeadset:        String.fromCodePoint(0xF02CE)  // md-headset
+    readonly property string iMonitor:        String.fromCodePoint(0xF0379)  // md-monitor (hdmi sinks)
+    readonly property string iWebcam:         String.fromCodePoint(0xF0100)  // md-webcam
+    readonly property string iBluetooth:      String.fromCodePoint(0xF00AF)  // md-bluetooth (generic device)
+    readonly property string iMouse:          String.fromCodePoint(0xF037D)  // md-mouse
+    readonly property string iKeyboard:       String.fromCodePoint(0xF030C)  // md-keyboard
+    readonly property string iPhone:          String.fromCodePoint(0xF011C)  // md-cellphone
+    readonly property string iGamepad:        String.fromCodePoint(0xF0296)  // md-gamepad-variant
+    readonly property string iLaptop:         String.fromCodePoint(0xF0322)  // md-laptop
+    readonly property string iWatch:          String.fromCodePoint(0xF0597)  // md-watch
+    readonly property string iLeaf:           String.fromCodePoint(0xF032A)  // md-leaf (power-saver)
+    readonly property string iBalanced:       String.fromCodePoint(0xF029A)  // md-gauge (balanced)
+    readonly property string iSpeedometer:    String.fromCodePoint(0xF04C5)  // md-speedometer (performance)
+    readonly property string iBrightnessAuto: String.fromCodePoint(0xF00E1)  // md-brightness-auto
+    function audioGlyph(kind) {        // kinds from AudioModel.sinkKind / sourceKind
+        switch (kind) {
+        case "headphones": return iHeadphones;
+        case "headset":    return iHeadset;
+        case "bluetooth":  return iBluetooth;
+        case "hdmi":       return iMonitor;
+        case "webcam":     return iWebcam;
+        case "microphone": return iMic;
+        default:           return iSpeaker;
+        }
+    }
+    function btDeviceGlyph(kind) {     // kinds from BtModel.deviceGlyphKind
+        switch (kind) {
+        case "headset":  return iHeadset;
+        case "mouse":    return iMouse;
+        case "keyboard": return iKeyboard;
+        case "phone":    return iPhone;
+        case "gamepad":  return iGamepad;
+        case "laptop":   return iLaptop;
+        case "watch":    return iWatch;
+        case "speaker":  return iSpeaker;
+        default:         return iBluetooth;
+        }
+    }
+
     // ── Metrics ──────────────────────────────────────────────────────
     readonly property int  barHeight: 36
     readonly property int  radius:    10        // Material rounding for bar pills/popouts
+    readonly property int  pillHeight: 26       // bar pills (module icons, battery)
+    readonly property int  iconPad:    7        // horizontal padding inside a one-glyph bar pill
     readonly property int  gap:       6
     readonly property int  pad:       10
     readonly property int  notifWidth: 360      // matches the status center, so the stacks line up
@@ -76,6 +124,7 @@ Singleton {
     // ── Animation ────────────────────────────────────────────────────
     readonly property int  animFast: 120        // slider glide / quick UI feedback
     readonly property int  animMed:  160        // popout + notification slide in / out
+    readonly property int  animSlow: 320        // battery charge bar fill
 
     // ── Typography ───────────────────────────────────────────────────
     readonly property string fontFamily: "JetBrainsMono Nerd Font"

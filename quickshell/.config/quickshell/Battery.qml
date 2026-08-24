@@ -5,6 +5,7 @@ import Quickshell.Services.UPower
 Rectangle {
     id: root
     signal clicked()
+    property bool active: false
 
     readonly property var dev: UPower.displayDevice
     readonly property real raw: dev ? dev.percentage : 0
@@ -14,11 +15,11 @@ Rectangle {
     readonly property bool charging: dev ? dev.state === 1 : false   // 1 = Charging
     readonly property bool low: pct <= 10
 
-    implicitWidth: rowi.implicitWidth + 2 * Theme.pad
-    implicitHeight: 26
+    implicitWidth: rowi.implicitWidth + 2 * Theme.iconPad
+    implicitHeight: Theme.pillHeight
     radius: Theme.radius
-    color: ma.containsMouse ? Theme.elevated : "transparent"
-    Behavior on color { ColorAnimation { duration: 120 } }
+    color: (ma.containsMouse || active) ? Theme.elevated : "transparent"
+    Behavior on color { ColorAnimation { duration: Theme.animFast } }
 
     Row {
         id: rowi

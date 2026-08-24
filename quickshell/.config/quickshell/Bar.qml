@@ -13,6 +13,15 @@ PanelWindow {
     implicitHeight: Theme.barHeight
     color: Theme.bar
 
+    // ── Popout arbitration: exactly one drawer open, keyed by name ───
+    // Drawers bind `shown` to this and ask closePopout() from their focus grab; the pills
+    // call togglePopout(). Switching A -> B never passes through "" so the notification
+    // hold below is never dropped mid-switch.
+    property string openPopout: ""
+    function togglePopout(key) { openPopout = (openPopout === key) ? "" : key; }
+    function closePopout(key)  { if (openPopout === key) openPopout = ""; }
+    readonly property bool popoutOpen: openPopout !== ""
+
     // ── LEFT: Arch launcher + workspaces ─────────────────────────────
     Row {
         id: left
@@ -21,8 +30,8 @@ PanelWindow {
         height: parent.height
         spacing: Theme.pad
 
-        ArchButton { anchors.verticalCenter: parent.verticalCenter }
-        Workspaces { anchors.verticalCenter: parent.verticalCenter }
+        ArchButton  { anchors.verticalCenter: parent.verticalCenter }
+        Workspaces  { anchors.verticalCenter: parent.verticalCenter }
     }
 
     // ── CENTER: clock (true center, independent of side widths) ──────
@@ -30,35 +39,38 @@ PanelWindow {
         anchors.centerIn: parent
     }
 
-    // ── RIGHT: tray + status/power + battery (added next stage) ──────
+    // ── RIGHT: tray + status/power + battery ─────────────────────────
     Row {
         id: right
         anchors.right: parent.right
         anchors.rightMargin: Theme.gap
         height: parent.height
-        spacing: 0   // status/battery already carry internal padding; matches the left gap
+        spacing: 0   // pills carry their own padding; matches the left gap
 
         SysTray { anchors.verticalCenter: parent.verticalCenter }
         StatusButton {
+            id: statusBtn
             anchors.verticalCenter: parent.verticalCenter
-            onToggled: { batPop.shown = false; powerCenter.shown = !powerCenter.shown }
+            active: bar.openPopout === "status"
+            onToggled: bar.togglePopout("status")
         }
         Battery {
+            id: batteryIcon
             anchors.verticalCenter: parent.verticalCenter
-            onClicked: { powerCenter.shown = false; batPop.shown = !batPop.shown }
+            active: bar.openPopout === "power"
+            onClicked: bar.togglePopout("power")
         }
     }
 
-    // Popouts
-    StatusPowerCenter { id: powerCenter }
-    BatteryPopup { id: batPop }
+    // Popouts (one drawer per module; each lines up under its pill)
+    StatusPowerCenter { barWindow: bar; key: "status"; anchorItem: statusBtn }
+    PowerDrawer       { barWindow: bar; key: "power";  anchorItem: batteryIcon }
 
     // Notifications share the popouts' top-right corner, so an open popout holds the
     // stack: arrivals queue and visible cards freeze until it closes. Cleared on
     // destruction too, or unplugging this monitor would strand the hold forever.
     NotificationLayer { barScreen: bar.screen }
 
-    readonly property bool popoutOpen: powerCenter.shown || batPop.shown
     onPopoutOpenChanged: Notifs.setHold(bar, popoutOpen)
     Component.onDestruction: Notifs.setHold(bar, false)
 }

@@ -8,6 +8,7 @@ import Quickshell.Bluetooth
 Rectangle {
     id: root
     signal toggled()
+    property bool active: false
 
     PwObjectTracker { objects: [Pipewire.defaultAudioSink] }
     readonly property var sinkAudio: Pipewire.defaultAudioSink ? Pipewire.defaultAudioSink.audio : null
@@ -47,10 +48,10 @@ Rectangle {
     }
 
     implicitWidth: row.implicitWidth + 2 * Theme.pad
-    implicitHeight: 26
+    implicitHeight: Theme.pillHeight
     radius: Theme.radius
-    color: ma.containsMouse ? Theme.elevated : "transparent"
-    Behavior on color { ColorAnimation { duration: 120 } }
+    color: (ma.containsMouse || active) ? Theme.elevated : "transparent"
+    Behavior on color { ColorAnimation { duration: Theme.animFast } }
 
     Row {
         id: row
