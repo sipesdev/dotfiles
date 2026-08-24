@@ -24,6 +24,11 @@ PanelWindow {
 
     readonly property bool shown: barWindow.openPopout === key
 
+    // A layer surface with no screen lands on the compositor's default output; pin it to the
+    // bar's monitor so a click on any bar opens the drawer right there (NotificationLayer does
+    // the same).
+    screen: barWindow.screen
+
     // How far the card is out of the bar: 0 = fully behind it, 1 = flush against it. The
     // slide animates THIS rather than the card's y directly. Binding y to `shown ? 0 : -height`
     // instead makes the Behavior fire on any height change, including one that happens while
