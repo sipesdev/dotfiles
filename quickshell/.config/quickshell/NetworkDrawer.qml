@@ -221,7 +221,7 @@ BarDrawer {
         onToggled: Sys.setWifiRadio(!Sys.wifiEnabled)
     }
 
-    // ── Stats grid (always mounted; "--" until the first probe returns) ──
+    // ── Stats grid (hidden without a route; rows read "--" until the first sample) ──
     GridLayout {
         Layout.fillWidth: true
         visible: !!net.info.iface

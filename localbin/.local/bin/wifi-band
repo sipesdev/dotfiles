@@ -9,7 +9,7 @@ set -euo pipefail
 nm_band_for()  { case "$1" in 2.4) echo bg ;; 5) echo a ;; 6) echo 6GHz ;; *) return 1 ;; esac; }
 band_from_nm() { case "$1" in bg) echo 2.4 ;; a) echo 5 ;; 6GHz) echo 6 ;; *) echo auto ;; esac; }
 
-# Boundaries mirror NetModel.bandForFreq so the popout label and this script agree.
+# Band boundaries: 2.4 GHz = 2400-2499, 5 GHz = 4900-5924, 6 GHz = 5925-7124 MHz.
 band_for_freq() {
     local mhz=${1%%[!0-9]*}
     [[ -n $mhz ]] || return 1
@@ -78,7 +78,7 @@ set_band() {
     # A band change only takes effect on reassociation; if the radio cannot come back on the
     # requested band, restore the old setting and reconnect rather than strand the machine.
     if ! nmcli connection up "$profile" >/dev/null 2>&1; then
-        nmcli connection modify "$profile" 802-11-wireless.band "$previous" >/dev/null
+        nmcli connection modify "$profile" 802-11-wireless.band "$previous" >/dev/null || true
         nmcli connection up "$profile" >/dev/null 2>&1 || true
         echo "wifi-band: could not connect on ${target}; reverted" >&2; exit 1
     fi

@@ -1,12 +1,11 @@
 #!/bin/bash
-# Snapshot of the interface behind the default route, for the Network popout's stats grid:
-# iface/ip/prefix/gateway, cumulative rx/tx bytes (the popout diffs them into rates), link
-# type, and one-shot ping samples to the gateway and to 1.1.1.1. Tab-separated key/value
-# lines; nothing at all when there is no route (undocked with Wi-Fi off). Port of
-# omarchy-network-status --verbose without the iw block (iw is not installed here).
+# Snapshot of the interface behind the default route, for the Network drawer's stats grid:
+# iface/ip/gateway, cumulative rx/tx bytes (the drawer diffs them into rates), and a one-shot
+# ping to 1.1.1.1. Tab-separated key/value lines; nothing at all when there is no route
+# (undocked with Wi-Fi off). Port of omarchy-network-status --verbose, trimmed to what is shown.
 set -uo pipefail
 
-# Override only to exercise the no-route path (e.g. NETWORK_PROBE_TARGET=192.0.2.1 with no route).
+# Override only to exercise the no-route path (e.g. NETWORK_PROBE_TARGET=2001:db8::1 with no IPv6 route).
 probe=${NETWORK_PROBE_TARGET:-1.1.1.1}
 
 route_json=$(ip -j route get "$probe" 2>/dev/null) || exit 0
@@ -15,29 +14,13 @@ iface=$(jq -r '.[0].dev // ""' <<<"$route_json")
 gw=$(jq -r '.[0].gateway // ""' <<<"$route_json")
 src=$(jq -r '.[0].prefsrc // ""' <<<"$route_json")
 [[ -n $iface ]] || exit 0
-prefix=$(ip -j addr show "$iface" 2>/dev/null |
-    jq -r '.[0].addr_info[]? | select(.family == "inet") | .prefixlen // ""' | head -n 1)
 
 printf 'iface\t%s\n' "$iface"
 printf 'ip\t%s\n' "$src"
-printf 'prefix\t%s\n' "$prefix"
 printf 'gateway\t%s\n' "$gw"
 [[ -r /sys/class/net/$iface/statistics/rx_bytes ]] && printf 'rx_bytes\t%s\n' "$(</sys/class/net/$iface/statistics/rx_bytes)"
 [[ -r /sys/class/net/$iface/statistics/tx_bytes ]] && printf 'tx_bytes\t%s\n' "$(</sys/class/net/$iface/statistics/tx_bytes)"
 
-if [[ -d /sys/class/net/$iface/wireless ]]; then
-    printf 'type\twifi\n'
-else
-    printf 'type\tethernet\n'
-    # cat, not $(<file): some drivers return EINVAL on read and $(<file) cannot redirect that.
-    [[ -r /sys/class/net/$iface/speed ]] && printf 'speed\t%s\n' "$(cat /sys/class/net/$iface/speed 2>/dev/null)"
-fi
-
-# One packet, one-second deadline, both probes in parallel so the poll stays under ~1.2 s.
+# One packet, one-second deadline; an empty value means the probe timed out.
 ping_ms() { LC_ALL=C ping -n -c 1 -W 1 "$1" 2>/dev/null | awk -F'time[=<]' '/time[=<]/ { split($2, p, " "); print p[1]; exit }'; }
-tmp=$(mktemp -d) || exit 0
-trap 'rm -rf "$tmp"' EXIT
-if [[ -n $gw ]]; then ping_ms "$gw" >"$tmp/router" & rpid=$!; fi
-ping_ms "$probe" >"$tmp/internet" & ipid=$!
-if [[ -n ${rpid:-} ]]; then wait "$rpid"; printf 'router_ping_ms\t%s\n' "$(<"$tmp/router")"; fi
-wait "$ipid"; printf 'internet_ping_ms\t%s\n' "$(<"$tmp/internet")"
+printf 'internet_ping_ms\t%s\n' "$(ping_ms "$probe")"

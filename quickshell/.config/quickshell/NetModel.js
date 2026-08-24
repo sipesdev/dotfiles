@@ -65,7 +65,7 @@ function packetLossPercent(samples) {
     return Math.round((lost / values.length) * 100);
 }
 
-// Rolling ping windows (history of `limit`, averaged over the last `averageLimit`).
+// Rolling window of 1.1.1.1 pings (history of `limit`, averaged over the last `averageLimit`).
 // A timed-out probe is a null sample: it drags packet loss up but not the average.
 function pingState(previous, sample, limit, averageLimit) {
     var prev = previous || {}, s = sample || {};
@@ -73,12 +73,9 @@ function pingState(previous, sample, limit, averageLimit) {
     var window = Math.max(1, parseInt(limit, 10) || 5);
     var avgWindow = Math.max(1, parseInt(averageLimit, 10) || window);
     var reset = iface === "" || iface !== (prev.pingIface || "");
-    var router = reset ? [] : prev.routerSamples;
     var internet = reset ? [] : prev.internetSamples;
-    router   = s.router_ping_ms   === undefined ? [] : appendSample(router, s.router_ping_ms, window);
     internet = s.internet_ping_ms === undefined ? [] : appendSample(internet, s.internet_ping_ms, window);
-    return { pingIface: iface, routerSamples: router, internetSamples: internet,
-             routerLatency: averageLatency(router, avgWindow),
+    return { pingIface: iface, internetSamples: internet,
              internetLatency: averageLatency(internet, avgWindow),
              packetLoss: packetLossPercent(internet) };
 }
@@ -152,15 +149,6 @@ function failureText(reason, needsCredentials, R) {
     return "Failed to connect";
 }
 
-// Band boundaries mirror the wifi-band script so the label and the pins never disagree.
-function bandForFreq(mhz) {
-    var v = parseFloat(mhz);
-    if (!v) return "";
-    if (v >= 2400 && v < 2500) return "2.4";
-    if (v >= 4900 && v < 5925) return "5";
-    if (v >= 5925 && v < 7125) return "6";
-    return "";
-}
 function parseBandStatus(raw) {
     var kv = parseKeyValue(raw);
     var tokens = String(kv.available || "").split(" "), available = [];
@@ -185,7 +173,7 @@ if (typeof module !== "undefined") {
         formatBytes: formatBytes, formatRate: formatRate, formatPing: formatPing,
         formatPacketLoss: formatPacketLoss, wifiRow: wifiRow, sortWifiRows: sortWifiRows,
         wifiSectionTitle: wifiSectionTitle, requiresCredentials: requiresCredentials,
-        canForget: canForget, failureText: failureText, bandForFreq: bandForFreq,
+        canForget: canForget, failureText: failureText,
         parseBandStatus: parseBandStatus, bandTitle: bandTitle, formatLinkSpeed: formatLinkSpeed
     };
 }

@@ -27,22 +27,22 @@ test("throughputState computes bytes per second from deltas", () => {
 });
 
 test("pingState keeps rolling windows and counts timeouts as loss", () => {
-    let s = M.pingState({}, { iface: "eth0", router_ping_ms: "1.2", internet_ping_ms: "14" }, 3, 2);
-    assert.equal(s.routerLatency, 1.2); assert.equal(s.internetLatency, 14); assert.equal(s.packetLoss, 0);
-    s = M.pingState(s, { iface: "eth0", router_ping_ms: "1.4", internet_ping_ms: "" }, 3, 2);
+    let s = M.pingState({}, { iface: "eth0", internet_ping_ms: "14" }, 3, 2);
+    assert.equal(s.internetLatency, 14); assert.equal(s.packetLoss, 0);
+    s = M.pingState(s, { iface: "eth0", internet_ping_ms: "" }, 3, 2);
     assert.deepEqual(s.internetSamples, [14, null]);
     assert.equal(s.internetLatency, 14);          // average ignores the timeout
     assert.equal(s.packetLoss, 50);
-    s = M.pingState(s, { iface: "eth0", router_ping_ms: "1.6", internet_ping_ms: "16" }, 3, 2);
-    s = M.pingState(s, { iface: "eth0", router_ping_ms: "1.8", internet_ping_ms: "18" }, 3, 2);
+    s = M.pingState(s, { iface: "eth0", internet_ping_ms: "16" }, 3, 2);
+    s = M.pingState(s, { iface: "eth0", internet_ping_ms: "18" }, 3, 2);
     assert.deepEqual(s.internetSamples, [null, 16, 18]);   // window of 3
     assert.equal(s.internetLatency, 17);                    // average of last 2
     assert.equal(s.packetLoss, 33);
 });
 
 test("pingState resets on iface change and on missing keys", () => {
-    let s = M.pingState({}, { iface: "eth0", router_ping_ms: "1", internet_ping_ms: "10" }, 5, 5);
-    s = M.pingState(s, { iface: "wlp191s0", router_ping_ms: "2", internet_ping_ms: "20" }, 5, 5);
+    let s = M.pingState({}, { iface: "eth0", internet_ping_ms: "10" }, 5, 5);
+    s = M.pingState(s, { iface: "wlp191s0", internet_ping_ms: "20" }, 5, 5);
     assert.deepEqual(s.internetSamples, [20]);
     s = M.pingState(s, { iface: "wlp191s0" }, 5, 5);
     assert.deepEqual(s.internetSamples, []); assert.equal(s.internetLatency, -1); assert.equal(s.packetLoss, 0);
@@ -110,11 +110,7 @@ test("requiresCredentials, canForget, failureText", () => {
     assert.equal(M.failureText(0, false, R), "Failed to connect");
 });
 
-test("bandForFreq, parseBandStatus, bandTitle", () => {
-    assert.equal(M.bandForFreq("2412"), "2.4");
-    assert.equal(M.bandForFreq("5745 MHz"), "5");
-    assert.equal(M.bandForFreq("5955"), "6");
-    assert.equal(M.bandForFreq(""), ""); assert.equal(M.bandForFreq("900"), "");
+test("parseBandStatus, bandTitle", () => {
     assert.deepEqual(M.parseBandStatus("band\t5\navailable\t2.4 5\nselected\tauto\n"),
         { band: "5", selected: "auto", available: ["2.4", "5"] });
     assert.deepEqual(M.parseBandStatus(""), { band: "", selected: "auto", available: [] });

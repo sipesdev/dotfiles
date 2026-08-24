@@ -134,8 +134,8 @@ it fails to load, notifications are down until it loads again. That is what make
 - `archwiki` — searches/renders the offline Arch Wiki (`arch-wiki-docs` package, mirror under
   `/usr/share/doc/arch-wiki/html/en`). `archwiki <query>` searches, `-t` titles only, `-r` renders an
   article to plain text via `python` (no lynx/w3m/pandoc on this box).
-- `network-probe` — default-route interface snapshot (ip/gateway/rx/tx bytes/type + gateway and 1.1.1.1
-  ping) as `key\tvalue` lines; nothing when there is no route.
+- `network-probe` — default-route interface snapshot (iface/ip/gateway/rx/tx bytes + a 1.1.1.1 ping) as
+  `key\tvalue` lines; nothing when there is no route.
 - `wifi-band` — show (`band`/`available`/`selected`) or pin (`auto|2.4|5|6`) the active Wi-Fi profile's
   `802-11-wireless.band`, reverting if the reconnect fails.
 - `wifi-connect`, `web2app`, `web2app-remove`.
