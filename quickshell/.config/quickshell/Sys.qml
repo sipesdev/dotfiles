@@ -18,48 +18,10 @@ Singleton {
         running: sys.autoBrightness          // start/stop the loop with the toggle
     }
 
-    // ── Airplane mode — rfkill is the single source of truth ─────────
-    property bool airplaneMode: false
-
-    function toggleAirplane() {
-        airplaneProc.command = [Quickshell.env("HOME") + "/.local/bin/airplane-toggle"];
-        airplaneProc.running = true;
-    }
-    // Refresh after the toggle finishes — covers the edge where no radio actually
-    // changed (so the rfkill-event watcher wouldn't otherwise fire).
-    Process { id: airplaneProc; onRunningChanged: if (!running) sys.refresh() }
-
-    // airplaneMode := (wifi AND bluetooth both soft-blocked)
-    Process {
-        id: rfkillRead
-        command: ["sh", "-c",
-            "w=$(rfkill list wifi | grep -c 'Soft blocked: yes'); " +
-            "b=$(rfkill list bluetooth | grep -c 'Soft blocked: yes'); " +
-            "[ \"$w\" -ge 1 ] && [ \"$b\" -ge 1 ] && echo on || echo off"]
-        stdout: StdioCollector {
-            onStreamFinished: sys.airplaneMode = (text.trim() === "on")
-        }
-    }
-    function refresh() { rfkillRead.running = true }
-
-    // Re-read on ANY rfkill change — our button, the hardware key, nmcli, etc.
-    Process {
-        id: rfkillWatch
-        running: true
-        command: ["rfkill", "event"]            // emits a line per state change
-        stdout: SplitParser {
-            splitMarker: "\n"
-            onRead: sys.refresh()
-        }
-        // Quickshell does not auto-restart a Process. Keep this watcher alive so the
-        // radio lockout never drifts out of sync if `rfkill event` ever exits.
-        onRunningChanged: if (!running) running = true
-    }
-
     // ── Ethernet (wired) — auto-prefer the wire, park the radio ──────
     // When a wired link comes up (e.g. the eGPU dock's ethernet) we flag it here
-    // and turn Wi-Fi off; when it goes away we bring Wi-Fi back (unless airplane
-    // mode has the radios locked out). We act only on the transition, so manually
+    // and turn Wi-Fi off; when it goes away we bring Wi-Fi back. We act only on the
+    // transition, so manually
     // re-enabling Wi-Fi while still docked is never undone.
     property bool ethernetConnected: false
     property string ethernetName: ""
@@ -79,7 +41,7 @@ Singleton {
         if (up === sys.ethernetConnected) return;      // no transition → leave Wi-Fi alone
         sys.ethernetConnected = up;
         if (up) sys.setWifiRadio(false);                       // wired → drop the radio
-        else if (!sys.airplaneMode) sys.setWifiRadio(true);    // unwired → Wi-Fi back (unless airplane)
+        else sys.setWifiRadio(true);                           // unwired → Wi-Fi back
     }
 
     Process { id: wifiRadioCtl }
@@ -89,7 +51,7 @@ Singleton {
     }
 
     // Re-read the wired link on ANY NetworkManager change. `nmcli monitor` emits a
-    // line per device/connection state change (mirrors the rfkill watcher above).
+    // line per device/connection state change.
     Process {
         id: nmWatch
         running: true
@@ -98,7 +60,7 @@ Singleton {
             splitMarker: "\n"
             onRead: sys.refreshEthernet()
         }
-        // Keep it alive if `nmcli monitor` ever exits, same as the rfkill watcher.
+        // Quickshell does not auto-restart a Process; keep it alive if `nmcli monitor` ever exits.
         onRunningChanged: if (!running) running = true
     }
 
@@ -138,5 +100,5 @@ Singleton {
         return false;
     }
 
-    Component.onCompleted: { sys.refresh(); sys.refreshEthernet(); }
+    Component.onCompleted: sys.refreshEthernet()
 }

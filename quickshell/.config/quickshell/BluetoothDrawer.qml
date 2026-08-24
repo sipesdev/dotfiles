@@ -62,10 +62,8 @@ BarDrawer {
         glyph: Theme.btGlyph(Sys.btOn, Sys.btConnected)
         glyphColor: Sys.btOn ? Theme.accent : Theme.dim
         title: !bt.adapter ? "Bluetooth unavailable" : (Sys.btOn ? "Bluetooth" : "Bluetooth off")
-        status: Sys.airplaneMode ? "Airplane mode"
-              : (Sys.btOn && bt.adapter && bt.adapter.discovering ? "Searching..." : "")
+        status: Sys.btOn && bt.adapter && bt.adapter.discovering ? "Searching..." : ""
         toggleVisible: bt.adapter !== null
-        toggleEnabled: !Sys.airplaneMode
         on: Sys.btOn
         onToggled: if (bt.adapter) bt.adapter.enabled = !bt.adapter.enabled
     }
@@ -75,8 +73,6 @@ BarDrawer {
         id: flick
         Layout.fillWidth: true
         visible: Sys.btOn && bt.rows.length > 0
-        enabled: !Sys.airplaneMode
-        opacity: Sys.airplaneMode ? 0.45 : 1
         implicitHeight: Math.min(listcol.implicitHeight, bt.maxListH)
         contentHeight: listcol.implicitHeight
         clip: true

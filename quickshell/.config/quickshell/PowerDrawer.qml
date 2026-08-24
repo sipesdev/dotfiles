@@ -118,11 +118,6 @@ BarDrawer {
         spacing: Theme.gap
         PowerBtn { glyph: Theme.iLock;    cmd: ["loginctl", "lock-session"] }
         PowerBtn { glyph: Theme.iSuspend; cmd: ["systemctl", "suspend"] }
-        PowerBtn {
-            glyph:  Theme.iAirplane
-            active: Sys.airplaneMode
-            action: () => Sys.toggleAirplane()
-        }
         PowerBtn { glyph: Theme.iReboot;  cmd: ["systemctl", "reboot"] }
         PowerBtn { glyph: Theme.iPower;   cmd: ["systemctl", "poweroff"]; danger: true }
     }

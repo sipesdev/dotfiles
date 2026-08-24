@@ -91,15 +91,14 @@ hl.bind("XF86AudioMicMute",      hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_
 hl.bind("XF86MonBrightnessUp",   hl.dsp.exec_cmd("brightnessctl -e4 -n2 set 5%+"),                    { locked = true, repeating = true })
 hl.bind("XF86MonBrightnessDown", hl.dsp.exec_cmd("brightnessctl -e4 -n2 set 5%-"),                    { locked = true, repeating = true })
 
--- ── Airplane mode ─────────────────────────────────────────────────────
+-- ── Airplane key ──────────────────────────────────────────────────────
 -- The hardware airplane key (XF86RFKill / KEY_RFKILL) is handled DIRECTLY by the
 -- kernel's built-in rfkill-input handler (CONFIG_RFKILL_INPUT=y) — it does a
 -- blanket toggle of ALL radios on its own and cannot be intercepted here (the
 -- kernel sees the key before Hyprland does). So there is intentionally NO bind for
--- it. The Quickshell airplane button runs ~/.local/bin/airplane-toggle, which
--- mirrors that same blanket toggle exactly — button and key are unified, no
--- save/restore, no desync. (Binding our own toggle here previously caused DOUBLE
--- handling: kernel + script fighting → the "kicks me off wifi" symptom.)
+-- it. (Binding our own toggle here previously caused DOUBLE handling: kernel +
+-- script fighting → the "kicks me off wifi" symptom.) The shell has no airplane
+-- button; radios are switched individually from the Bluetooth and Network drawers.
 
 hl.bind("XF86AudioNext",  hl.dsp.exec_cmd("playerctl next"),       { locked = true })
 hl.bind("XF86AudioPause", hl.dsp.exec_cmd("playerctl play-pause"), { locked = true })

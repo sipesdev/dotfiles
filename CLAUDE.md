@@ -82,7 +82,7 @@ classic hyprlang forms like `hyprctl dispatch dpms off` fail to parse on this bu
 ## Quickshell (`quickshell/`) — 0.3.0, hand-written QML
 No `qmldir`. `Theme.qml`, `Sys.qml` and `Notifs.qml` are `pragma Singleton`, auto-resolved by filename.
 `shell.qml` carries `//@ pragma UseQApplication` (required for native SNI tray context menus). `Sys.qml`
-holds cross-component state (airplane mode mirrors `rfkill`; auto-brightness owns the `autobrightness`
+holds cross-component state (ethernet/Wi-Fi hand-off, native NetworkManager and BlueZ state; auto-brightness owns the `autobrightness`
 process).
 
 ### Bar modules (`BarDrawer` / `BarIcon`)
@@ -129,8 +129,6 @@ it fails to load, notifications are down until it loads again. That is what make
 `quickshell/` more expensive than it looks — restart it and check the log (above) after any QML edit.
 
 ## Helper scripts (`localbin/`)
-- `airplane-toggle` — mirrors the kernel's `rfkill` blanket toggle (`block all` / `unblock all`) so the
-  Quickshell airplane button behaves identically to the hardware key. No per-radio save/restore by design.
 - `autobrightness` — ALS-driven backlight. Does a one-shot read of `/sys/.../in_illuminance_raw` at start
   (because `monitor-sensor` only emits on change), then streams. Started/stopped by `Sys.autoBrightness`.
 - `archwiki` — searches/renders the offline Arch Wiki (`arch-wiki-docs` package, mirror under

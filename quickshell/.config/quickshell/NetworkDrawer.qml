@@ -211,14 +211,12 @@ BarDrawer {
         title: Sys.ethernetConnected ? "Ethernet"
              : Sys.wifiConnected ? Sys.wifiSsid
              : Sys.wifiEnabled ? "Wi-Fi" : "Wi-Fi off"
-        status: Sys.airplaneMode ? "Airplane mode"
-              : Sys.ethernetConnected ? (Sys.ethernetName
+        status: Sys.ethernetConnected ? (Sys.ethernetName
                     + (Sys.wiredDevice && Sys.wiredDevice.linkSpeed > 0
                        ? "  " + NetModel.formatLinkSpeed(Sys.wiredDevice.linkSpeed) : ""))
               : Sys.wifiConnected ? "Connected"
               : Sys.wifiEnabled ? "Not connected" : ""
         toggleVisible: Sys.wifiDevice !== null
-        toggleEnabled: !Sys.airplaneMode
         on: Sys.wifiEnabled
         onToggled: Sys.setWifiRadio(!Sys.wifiEnabled)
     }
@@ -255,12 +253,10 @@ BarDrawer {
         StatValue { text: net.info.gateway || "--"; copyable: !!net.info.gateway }
     }
 
-    // ── Wi-Fi: band + network list (locked out in airplane mode) ─────
+    // ── Wi-Fi: band + network list ───────────────────────────────────
     ColumnLayout {
         Layout.fillWidth: true
         visible: Sys.wifiDevice !== null && Sys.wifiEnabled
-        enabled: !Sys.airplaneMode
-        opacity: Sys.airplaneMode ? 0.45 : 1
         spacing: 4
 
         Rectangle { Layout.fillWidth: true; height: 1; color: Theme.elevated; visible: net.canSelectBand }
