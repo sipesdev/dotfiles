@@ -73,12 +73,6 @@ Singleton {
     readonly property string iMonitor:        String.fromCodePoint(0xF0379)  // md-monitor (hdmi sinks)
     readonly property string iWebcam:         String.fromCodePoint(0xF0100)  // md-webcam
     readonly property string iBluetooth:      String.fromCodePoint(0xF00AF)  // md-bluetooth (generic device)
-    readonly property string iMouse:          String.fromCodePoint(0xF037D)  // md-mouse
-    readonly property string iKeyboard:       String.fromCodePoint(0xF030C)  // md-keyboard
-    readonly property string iPhone:          String.fromCodePoint(0xF011C)  // md-cellphone
-    readonly property string iGamepad:        String.fromCodePoint(0xF0296)  // md-gamepad-variant
-    readonly property string iLaptop:         String.fromCodePoint(0xF0322)  // md-laptop
-    readonly property string iWatch:          String.fromCodePoint(0xF0597)  // md-watch
     readonly property string iLeaf:           String.fromCodePoint(0xF032A)  // md-leaf (power-saver)
     readonly property string iBalanced:       String.fromCodePoint(0xF029A)  // md-gauge (balanced)
     readonly property string iSpeedometer:    String.fromCodePoint(0xF04C5)  // md-speedometer (performance)
@@ -92,19 +86,6 @@ Singleton {
         case "webcam":     return iWebcam;
         case "microphone": return iMic;
         default:           return iSpeaker;
-        }
-    }
-    function btDeviceGlyph(kind) {     // kinds from BtModel.deviceGlyphKind
-        switch (kind) {
-        case "headset":  return iHeadset;
-        case "mouse":    return iMouse;
-        case "keyboard": return iKeyboard;
-        case "phone":    return iPhone;
-        case "gamepad":  return iGamepad;
-        case "laptop":   return iLaptop;
-        case "watch":    return iWatch;
-        case "speaker":  return iSpeaker;
-        default:         return iBluetooth;
         }
     }
 
