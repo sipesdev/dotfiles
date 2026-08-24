@@ -105,7 +105,10 @@ arbitration: `openPopout` holds the open key, pills call `togglePopout(key)`, a 
 calls `closePopout(key)`, and a drawer is `shown` exactly while `openPopout === key` (never write
 `shown`). The bar window is inside every grab so pill clicks never clear it. `Sys.qml` exposes the
 native NetworkManager / BlueZ state (`wifiDevice`, `wifiNetwork`, `wifiStrength`, `btAdapter`,
-`btConnected`) that both the pills and drawers read. Primitives: `DrawerHero`, `SectionHeader`,
+`btConnected`) that both the pills and drawers read, owns Bluetooth power (`setBluetoothPower`, via the
+rfkill soft block so the choice survives a reboot) and the one discovery session every monitor's Bluetooth
+drawer shares (`btDrawersOpen`, `btOwesDiscoveryStop`: scan only while a drawer is open, stopped after
+close against BlueZ's confirmed state). Primitives: `DrawerHero`, `SectionHeader`,
 `ListRow`, `SliderRow`, `TogglePill`/`ToggleRow`, `Pill`, `PowerBtn`, `BarSlider`. Logic that can be
 pure lives in `NetModel.js` / `AudioModel.js` / `PowerModel.js` / `BtModel.js` and is tested by
 `make test` from `tests/quickshell/` (deliberately outside every stow package). The network drawer
@@ -133,6 +136,9 @@ it fails to load, notifications are down until it loads again. That is what make
   range; the Display drawer), `up` / `down` (the brightness keys; exponential steps as before),
   `set-exp N` (autobrightness). Caps at 98% of `max_brightness` because `amdgpu_bl1` goes dark
   (`actual_brightness` 0) from raw ~64880 up; "100" is the brightest the panel actually reaches.
+- `bluetooth-power` — `on` / `off` via `rfkill unblock|block bluetooth` (BlueZ's Powered is not persisted;
+  the block is). `on` waits for `Powered: yes`, falling back to `bluetoothctl power on`. Explicit
+  direction only.
 - `autobrightness` — ALS-driven backlight. Does a one-shot read of `/sys/.../in_illuminance_raw` at start
   (because `monitor-sensor` only emits on change), then streams. Started/stopped by `Sys.autoBrightness`.
   Applies levels via `backlight set-exp`.

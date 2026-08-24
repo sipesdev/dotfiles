@@ -1,126 +1,294 @@
+import Quickshell.Bluetooth
+import Quickshell.Services.Pipewire
 import QtQuick
 import QtQuick.Layouts
 import "BtModel.js" as BtModel
 
-// Bluetooth module: adapter toggle, then the named devices BlueZ reports (CONNECTED first,
-// then DEVICES). Rows are primitive snapshots (BtModel.deviceRow); the live device is
-// looked up by address at click time. Discovery runs only while the drawer is open.
+// Bluetooth module, modelled on Omarchy's bluetooth panel: a hero with the radio switch and a
+// rotating phrase while the scan runs; CONNECTED rows above a capped, scrollable list of PAIRED
+// then AVAILABLE devices (AVAILABLE only while BlueZ reports discovery); one-line rows with a
+// live status (Connecting… / Disconnecting… / Forgetting… / battery %) and a forget button on
+// hover for remembered devices; connecting an audio device makes it the default output once its
+// Pipewire node appears. Rows are primitive snapshots (BtModel.deviceRow): BlueZ churn can destroy
+// a device while a delegate is still incubating, so actions re-resolve it by address. Power and
+// discovery are owned by Sys (rfkill soft block; one scan shared across monitors).
 BarDrawer {
     id: bt
-    contentWidth: 320
-    spacing: 4
+    contentWidth: 340
+    spacing: Theme.pad
 
     readonly property var adapter: Sys.btAdapter
-    readonly property int maxListH: Math.round((Screen.height > 0 ? Screen.height : 1000) * 0.5)
-    property var rows: []
+    readonly property var devices: Bluetooth.devices ? Bluetooth.devices.values : []
+    readonly property int maxListH: Math.round((Screen.height > 0 ? Screen.height : 1000) * 0.4)
+    readonly property var states: ({ Disconnecting: BluetoothDeviceState.Disconnecting, Connecting: BluetoothDeviceState.Connecting })
 
+    onShownChanged: Sys.btDrawersOpen += shown ? 1 : -1
+    Component.onDestruction: if (shown) Sys.btDrawersOpen -= 1
+
+    // ── Grouping. deviceLists reads every property it sorts on, so these re-evaluate on any
+    //    connect / pair / rename; the rows also read state, battery and pairing. ──
+    readonly property var groups: BtModel.deviceLists(devices)
+    readonly property bool showDiscovered: adapter !== null && adapter.discovering
+    readonly property var connectedRows: groups.connected.map(function (d) { return BtModel.deviceRow(d, "connected"); })
+    readonly property var scrollRows: {
+        var rows = groups.known.map(function (d) { return BtModel.deviceRow(d, "known"); });
+        if (showDiscovered) rows = rows.concat(groups.discovered.map(function (d) { return BtModel.deviceRow(d, "discovered"); }));
+        return rows;
+    }
+    readonly property bool empty: connectedRows.length === 0 && scrollRows.length === 0
     function deviceFor(address) {
-        if (!adapter) return null;
-        var ds = adapter.devices.values;
-        for (var i = 0; i < ds.length; i++) if (ds[i] && ds[i].address === address) return ds[i];
+        for (var i = 0; i < devices.length; i++) if (devices[i] && devices[i].address === address) return devices[i];
         return null;
     }
-    function syncRows() {
-        var out = [];
-        var ds = adapter ? adapter.devices.values : [];
-        for (var i = 0; i < ds.length; i++) {
-            var d = ds[i];
-            if (d && BtModel.named(d.name, d.address)) out.push(BtModel.deviceRow(d));
-        }
-        out = BtModel.sortDeviceRows(out);
-        if (JSON.stringify(out) !== JSON.stringify(rows)) rows = out;   // no churn, no reflow
-    }
-    function setDiscovering(on) { if (adapter && adapter.enabled) adapter.discovering = on; }
-    onShownChanged: { setDiscovering(shown); if (shown) syncRows(); }
-    Connections {
-        target: bt.adapter
-        function onEnabledChanged() { bt.setDiscovering(bt.shown && bt.adapter.enabled); bt.syncRows(); }
-    }
-    Connections {
-        target: bt.adapter ? bt.adapter.devices : null
-        function onValuesChanged() { bt.syncRows() }
-    }
-    Connections { target: Sys; function onBtConnectedChanged() { bt.syncRows() } }
-    Timer { interval: 2000; repeat: true; running: bt.shown; onTriggered: bt.syncRows() }
 
-    // Click: connected -> disconnect; paired -> trust + connect; else pair (bt-agent in
-    // hypr autostart authorizes the bond; afterPair then trusts + connects).
-    function tapDevice(row) {
+    // ── Pending actions: address -> "powering" | "pairing" | "connecting" | "disconnecting" |
+    //    "forgetting". Kept here, not on the row, so it survives a row moving between sections;
+    //    cleared when BlueZ confirms, or wholesale by the 20 s bail-out (which outlasts BlueZ's
+    //    own pairing and connect timeouts). ──
+    property var pending: ({})
+    function setPending(address, action) {
+        pending = BtModel.withPendingAction(pending, address, action);
+        if (action) pendingTimeout.restart();
+    }
+    Timer { id: pendingTimeout; interval: 20000; onTriggered: bt.pending = ({}) }
+    onGroupsChanged: syncPending()
+    Connections { target: bt.adapter; function onEnabledChanged() { bt.syncPending() } }
+
+    // Advance each in-flight action against the live device -- Omarchy's sequencing:
+    // powering -> (adapter up) -> pair or connect; pairing -> (bonded) -> trust + connect;
+    // connecting -> connected; disconnecting -> disconnected; forgetting -> gone or unpaired.
+    function syncPending() {
+        var next = BtModel.cloneMap(pending), changed = false;
+        for (var address in next) {
+            var action = next[address], d = deviceFor(address), done = false;
+            if (action === "powering" && Sys.btOn && d) {
+                if (d.paired || d.bonded || d.trusted) { d.trusted = true; d.connect(); next[address] = "connecting"; }
+                else { d.pair(); next[address] = "pairing"; }
+                changed = true;
+            } else if (action === "pairing" && d && (d.paired || d.bonded) && !d.pairing) {
+                d.trusted = true; d.connect(); next[address] = "connecting"; changed = true;
+            } else if ((action === "connecting" || action === "pairing") && d && d.connected) {
+                scheduleAudioSwitch(d); done = true;
+            } else if (action === "disconnecting" && d && !d.connected) {
+                done = true;
+            } else if (action === "forgetting" && (!d || !(d.paired || d.bonded || d.trusted))) {
+                done = true;
+            }
+            if (done) { delete next[address]; changed = true; }
+        }
+        if (changed) pending = next;
+    }
+    function connectDevice(row) {
+        var d = deviceFor(row.address);
+        if (!d || d.connected) return;
+        if (!Sys.btOn) { setPending(row.address, "powering"); Sys.setBluetoothPower(true); return; }   // connecting turns the radio on
+        if (d.paired || d.bonded || d.trusted) { d.trusted = true; d.connect(); setPending(row.address, "connecting"); }
+        else { d.pair(); setPending(row.address, "pairing"); }   // bt-agent (hypr autostart) authorizes the bond
+    }
+    function disconnectDevice(row) {
+        var d = deviceFor(row.address);
+        if (!d || !d.connected) return;
+        d.disconnect();
+        setPending(row.address, "disconnecting");
+    }
+    function forgetDevice(row) {
         var d = deviceFor(row.address);
         if (!d) return;
-        if (d.connected) { d.disconnect(); return; }
-        if (d.paired || d.bonded) { d.trusted = true; d.connect(); }
-        else d.pair();
+        d.forget();                                    // BlueZ RemoveDevice disconnects first
+        setPending(row.address, "forgetting");
     }
-    // Pairing completes asynchronously. Once the bond lands, persist trust (PIN-less
-    // devices won't auto-reconnect otherwise) and bring the connection up.
-    function afterPair(d) {
-        if (d && (d.paired || d.bonded) && !d.connected) { d.trusted = true; d.connect(); }
+
+    // ── The default output follows a freshly connected device: poll for its sink, up to ~4 s ──
+    property var audioTarget: null
+    property int audioAttempts: 0
+    function scheduleAudioSwitch(d) {
+        audioTarget = { address: d.address || "", label: BtModel.deviceLabel(d) };   // snapshot, never the object
+        audioAttempts = 0;
+        audioSwitch.restart();
     }
+    Timer {
+        id: audioSwitch
+        interval: 500
+        onTriggered: {
+            if (!bt.audioTarget) return;
+            var nodes = Pipewire.nodes ? Pipewire.nodes.values : [];
+            for (var i = 0; i < nodes.length; i++) {
+                if (BtModel.bluetoothSinkMatchesDevice(nodes[i], bt.audioTarget)) {
+                    Pipewire.preferredDefaultAudioSink = nodes[i];
+                    bt.audioTarget = null;
+                    return;
+                }
+            }
+            bt.audioAttempts += 1;
+            if (bt.audioAttempts < 8) audioSwitch.restart(); else bt.audioTarget = null;
+        }
+    }
+
+    // ── Hero: glyph, "Bluetooth", a rotating phrase while scanning, the radio switch ──
+    readonly property var phrases: ["Untangling wires", "Streaming vikings", "Pairing mysteries", "Herding headsets",
+                                    "Taming radios", "Summoning speakers", "Wrangling codecs", "Polishing packets"]
+    property int phraseIndex: 0
+    readonly property bool rotating: bt.shown && Sys.btOn
+    Timer { interval: 2800; repeat: true; running: bt.rotating; onTriggered: phraseSwap.restart() }
+    SequentialAnimation {
+        id: phraseSwap
+        NumberAnimation { target: hero; property: "statusOpacity"; to: 0; duration: 180; easing.type: Easing.OutQuad }
+        ScriptAction { script: bt.phraseIndex = (bt.phraseIndex + 1) % bt.phrases.length }
+        NumberAnimation { target: hero; property: "statusOpacity"; to: 1; duration: 260; easing.type: Easing.InQuad }
+    }
+    onRotatingChanged: if (!rotating) { phraseSwap.stop(); hero.statusOpacity = 1; }   // never leave "Turned off" half-faded
 
     DrawerHero {
+        id: hero
         glyph: Theme.btGlyph(Sys.btOn, Sys.btConnected)
         glyphColor: Sys.btOn ? Theme.accent : Theme.dim
-        title: !bt.adapter ? "Bluetooth unavailable" : (Sys.btOn ? "Bluetooth" : "Bluetooth off")
-        status: Sys.btOn && bt.adapter && bt.adapter.discovering ? "Searching..." : ""
+        title: "Bluetooth"
+        status: !bt.adapter ? "No adapter" : (Sys.btOn ? bt.phrases[bt.phraseIndex] : "Turned off")
         toggleVisible: bt.adapter !== null
         on: Sys.btOn
-        onToggled: if (bt.adapter) bt.adapter.enabled = !bt.adapter.enabled
+        onToggled: Sys.setBluetoothPower(!Sys.btOn)
     }
 
-    // ── Device list (named only, scrollable, capped) ─────────────────
+    Rectangle { Layout.fillWidth: true; height: 1; color: Theme.elevated }
+
+    // ── CONNECTED: above the scroll area, never clipped ──
+    ColumnLayout {
+        Layout.fillWidth: true
+        visible: bt.connectedRows.length > 0
+        spacing: 2
+        SectionHeader { Layout.fillWidth: true; text: "CONNECTED" }
+        Repeater {
+            model: bt.connectedRows
+            delegate: BtRow { required property var modelData; row: modelData }
+        }
+    }
+    Rectangle {
+        Layout.fillWidth: true; height: 1; color: Theme.elevated
+        visible: bt.connectedRows.length > 0 && bt.scrollRows.length > 0
+    }
+
+    // ── PAIRED then AVAILABLE, scrollable and capped ──
     Flickable {
         id: flick
         Layout.fillWidth: true
-        visible: Sys.btOn && bt.rows.length > 0
+        visible: bt.scrollRows.length > 0
         implicitHeight: Math.min(listcol.implicitHeight, bt.maxListH)
         contentHeight: listcol.implicitHeight
         clip: true
         boundsBehavior: Flickable.StopAtBounds
+        interactive: contentHeight > height
         Behavior on implicitHeight { NumberAnimation { duration: 130; easing.type: Easing.OutCubic } }
 
         ColumnLayout {
             id: listcol
             width: flick.width
             spacing: 2
-
             Repeater {
-                model: bt.rows
+                model: bt.scrollRows
                 delegate: ColumnLayout {
                     id: cell
                     required property var modelData
                     required property int index
+                    readonly property string title: BtModel.scrollSectionTitle(bt.scrollRows, index)
                     Layout.fillWidth: true
                     spacing: 2
-
-                    SectionHeader {
-                        Layout.fillWidth: true
-                        visible: text !== ""
-                        text: BtModel.deviceSectionTitle(bt.rows, cell.index)
-                    }
-                    ListRow {
-                        glyph: Theme.btDeviceGlyph(BtModel.deviceGlyphKind(cell.modelData.icon))
-                        glyphColor: cell.modelData.connected ? Theme.accent : Theme.text
-                        label: cell.modelData.name
-                        labelColor: cell.modelData.connected ? Theme.accent : Theme.text
-                        detail: BtModel.deviceStatus(cell.modelData)
-                        onClicked: bt.tapDevice(cell.modelData)
-                        // Auto-trust + connect a device the moment it finishes pairing.
-                        Connections {
-                            target: bt.deviceFor(cell.modelData.address)
-                            function onBondedChanged() { bt.afterPair(target) }
-                            function onPairedChanged() { bt.afterPair(target) }
-                        }
-                    }
+                    Rectangle { Layout.fillWidth: true; height: 1; color: Theme.elevated; visible: cell.index > 0 && cell.title !== "" }
+                    SectionHeader { Layout.fillWidth: true; visible: cell.title !== ""; text: cell.title }
+                    BtRow { row: cell.modelData }
                 }
             }
         }
     }
+
     Text {
-        visible: Sys.btOn && bt.rows.length === 0
-        text: "No devices found"
+        visible: bt.empty
+        text: !bt.adapter ? "No Bluetooth adapter" : (Sys.btOn ? "Scanning for devices…" : "Turn Bluetooth on to scan")
         color: Theme.dim
         font.family: Theme.fontFamily
         font.pixelSize: Theme.fontSize - 1
+    }
+
+    // One device. Left click: connected -> disconnect, remembered -> connect, discovered -> pair.
+    // Right click: connected -> disconnect, remembered -> forget, discovered -> nothing. The
+    // forget button appears on hover for remembered rows only.
+    component BtRow: Rectangle {
+        id: brow
+        required property var row
+        readonly property string action: BtModel.pendingAction(bt.pending, row.address)
+        readonly property string status: BtModel.statusText(row, action, bt.states)
+        readonly property bool strong: BtModel.statusStrong(row, action, bt.states)
+        readonly property bool remembered: row.section === "known" || row.section === "connected"
+
+        Layout.fillWidth: true
+        implicitHeight: 30
+        radius: Theme.radius
+        color: (rowMa.containsMouse || forgetMa.containsMouse) ? Theme.elevated : "transparent"
+        Behavior on color { ColorAnimation { duration: Theme.animFast } }
+
+        RowLayout {
+            anchors.fill: parent
+            anchors.leftMargin: 6
+            anchors.rightMargin: 8
+            spacing: 6
+            Text {
+                Layout.preferredWidth: 22
+                horizontalAlignment: Text.AlignHCenter
+                text: Theme.btGlyph(true, brow.row.connected)
+                color: brow.row.connected ? Theme.accent : (brow.strong ? Theme.text : Theme.dim)
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSize + 1
+            }
+            Text {
+                Layout.fillWidth: true
+                text: brow.row.label
+                elide: Text.ElideRight
+                color: brow.row.connected ? Theme.accent : Theme.text
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSize
+            }
+            Text {
+                visible: brow.status !== ""
+                text: brow.status
+                color: brow.strong ? Theme.text : Theme.dim
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSize - 2
+            }
+            Item {
+                Layout.preferredWidth: 22
+                Layout.fillHeight: true
+                visible: brow.remembered && (rowMa.containsMouse || forgetMa.containsMouse)
+                Text {
+                    anchors.centerIn: parent
+                    text: Theme.iForget
+                    color: forgetMa.containsMouse ? Theme.danger : Theme.dim
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSize - 1
+                }
+                MouseArea {
+                    id: forgetMa
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: bt.forgetDevice(brow.row)
+                }
+            }
+        }
+        MouseArea {
+            id: rowMa
+            anchors.fill: parent
+            anchors.rightMargin: brow.remembered ? 30 : 0
+            hoverEnabled: true
+            acceptedButtons: Qt.LeftButton | Qt.RightButton
+            cursorShape: Qt.PointingHandCursor
+            onClicked: (mouse) => {
+                if (mouse.button === Qt.RightButton) {
+                    if (brow.row.connected) bt.disconnectDevice(brow.row);
+                    else if (brow.remembered) bt.forgetDevice(brow.row);
+                    return;
+                }
+                if (brow.row.connected) bt.disconnectDevice(brow.row);
+                else bt.connectDevice(brow.row);
+            }
+        }
     }
 }
