@@ -141,12 +141,21 @@ function requiresCredentials(security, openValue, oweValue) {
 function canForget(row) { return !!(row && row.known && !row.connected); }
 function failureText(reason, needsCredentials, R) {
     var r = R || {};
-    if (needsCredentials && reason === r.NoSecrets) return "Passphrase required";
+    if (needsCredentials && reason === r.NoSecrets) return "Password rejected";   // NM reports a supplicant psk mismatch as no-secrets
     if (needsCredentials && reason === r.WifiAuthTimeout) return "Wrong password";
     if (reason === r.WifiNetworkLost) return "Network lost";
     if (reason === r.WifiClientDisconnected) return "Disconnected";
     if (reason === r.WifiClientFailed) return "Connection failed";
     return "Failed to connect";
+}
+
+// A failed connect reopens the passphrase prompt when the key is the likely cause: NoSecrets
+// (how NetworkManager surfaces a psk mismatch with no secret agent) or an auth timeout.
+// connectWithPsk then replaces the stored key.
+function shouldReprompt(reason, needsCredentials, R) {
+    var r = R || {};
+    if (!needsCredentials) return false;
+    return reason === r.NoSecrets || reason === r.WifiAuthTimeout;
 }
 
 function parseBandStatus(raw) {
@@ -173,7 +182,7 @@ if (typeof module !== "undefined") {
         formatBytes: formatBytes, formatRate: formatRate, formatPing: formatPing,
         formatPacketLoss: formatPacketLoss, wifiRow: wifiRow, sortWifiRows: sortWifiRows,
         wifiSectionTitle: wifiSectionTitle, requiresCredentials: requiresCredentials,
-        canForget: canForget, failureText: failureText,
+        canForget: canForget, failureText: failureText, shouldReprompt: shouldReprompt,
         parseBandStatus: parseBandStatus, bandTitle: bandTitle, formatLinkSpeed: formatLinkSpeed
     };
 }

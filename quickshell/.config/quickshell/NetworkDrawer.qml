@@ -9,8 +9,9 @@ import "ListSync.js" as ListSync
 // Network module: connection hero + radio toggle, live stats from network-probe (Omarchy's
 // eight: ping, packet loss, receiving, sending, downloaded, uploaded, IP, gateway), Wi-Fi band
 // pinning via wifi-band, and the Wi-Fi list split into KNOWN / OTHER networks. Scanning,
-// connecting, disconnecting and forgetting go through Quickshell's NetworkManager backend;
-// only a secured, unknown network shells out to wifi-connect for its zenity password prompt.
+// connecting, disconnecting and forgetting go through Quickshell's NetworkManager backend; a
+// secured network without a stored key gets an inline passphrase prompt under its row (Omarchy),
+// which connectWithPsk() also uses to replace a rejected key.
 BarDrawer {
     id: net
     contentWidth: 360
@@ -18,11 +19,13 @@ BarDrawer {
 
     readonly property string home: Quickshell.env("HOME")
     readonly property int maxListH: Math.round((Screen.height > 0 ? Screen.height : 1000) * 0.5)
+    wantsKeyboard: true
+    keyboardExclusive: passwordSsid !== ""
 
     onShownChanged: {
         if (Sys.wifiDevice) Sys.wifiDevice.scannerEnabled = shown;   // scan only while open
         if (shown) syncRows();
-        else { thru = {}; ping = {}; }                                // next open seeds afresh
+        else { thru = {}; ping = {}; passwordSsid = ""; }             // next open seeds afresh
     }
 
     // ── Route / interface stats (network-probe, 1.5 s while open) ────
@@ -158,6 +161,7 @@ BarDrawer {
         actionTimeout.restart();
     }
     function clearAction() {
+        if (actionKind === "connect") passwordSsid = "";   // the key worked: drop the prompt
         actionTimeout.stop();
         actionSsid = ""; actionKind = ""; failureSsid = ""; failureReason = "";
         syncRows();
@@ -167,6 +171,7 @@ BarDrawer {
         actionTimeout.stop();
         failureSsid = actionSsid;
         failureReason = NetModel.failureText(reason, requiresCredentials(network.security), failReasons);
+        if (NetModel.shouldReprompt(reason, requiresCredentials(network.security), failReasons)) passwordSsid = network.name;   // ask again, reason shown
         actionSsid = ""; actionKind = "";
         syncRows();
     }
@@ -176,17 +181,14 @@ BarDrawer {
         else if (actionKind === "disconnect" && !n.connected && !n.stateChanging) clearAction();
         else if (actionKind === "forget" && !n.known && !n.stateChanging) clearAction();
     }
-    // Secured, unknown networks go through wifi-connect (zenity password prompt, then nmcli).
-    // When the prompt is cancelled the script exits without connecting: drop the busy state.
-    Process {
-        id: connectScript
-        onExited: {
-            if (net.actionKind === "connect") {
-                var n = net.networkForSsid(net.actionSsid);
-                if (!n || !n.connected) net.clearAction();
-            }
-            net.syncRows();
-        }
+    // ── Inline passphrase prompt (Omarchy): under the row, Enter or the check connects, Esc cancels ──
+    property string passwordSsid: ""
+    function openPassword(ssid) { failureSsid = ""; failureReason = ""; passwordSsid = ssid; }
+    function cancelPassword() { passwordSsid = ""; }
+    function connectWithPassphrase(ssid, psk) {
+        var n = networkForSsid(ssid);
+        if (!n) return;
+        runAction("connect", n, function (x) { x.connectWithPsk(psk); });   // stores or replaces the key, then activates
     }
     function tapRow(row) {
         if (busy) return;
@@ -197,10 +199,7 @@ BarDrawer {
             runAction("connect", n, function (x) { x.connect(); });
             return;
         }
-        runAction("connect", n, function (x) {
-            connectScript.command = [net.home + "/.local/bin/wifi-connect", x.name, "1"];
-            connectScript.running = true;
-        });
+        openPassword(row.ssid);
     }
     function forgetRow(row) {
         var n = networkForSsid(row.ssid);
@@ -374,8 +373,9 @@ BarDrawer {
 
     // One network. Rows are primitive snapshots (NetModel.wifiRow); the live object is
     // resolved by SSID for signals and actions. Click: connected -> disconnect, known or open
-    // -> connect, secured unknown -> wifi-connect prompt. Hover a known, idle row for the
-    // forget "x" at the right edge (the lock glyph otherwise marks secured networks).
+    // -> connect, secured without a key -> the inline prompt opens under the row. Hover a
+    // known, idle row for the forget "x" at the right edge (the lock glyph otherwise marks
+    // secured networks).
     component WifiRow: Rectangle {
         id: wrow
         required property var row
@@ -384,16 +384,27 @@ BarDrawer {
         readonly property bool canForget: NetModel.canForget(row)
         readonly property bool isBusy: net.actionKind !== "" && net.actionSsid === row.ssid
         readonly property bool isFailed: net.failureReason !== "" && net.failureSsid === row.ssid
+        readonly property bool promptOpen: net.passwordSsid === row.ssid && !isBusy
         readonly property string status: isBusy
               ? ({ connect: "Connecting...", disconnect: "Disconnecting...", forget: "Forgetting..." })[net.actionKind]
               : isFailed ? net.failureReason
               : row.connected ? "Connected" : ""
 
         Layout.fillWidth: true
-        implicitHeight: 30
+        implicitHeight: promptOpen ? 64 : 30
+        Behavior on implicitHeight { NumberAnimation { duration: Theme.animFast; easing.type: Easing.OutCubic } }
         radius: Theme.radius
-        color: rowMa.containsMouse ? Theme.elevated : "transparent"
+        color: (rowMa.containsMouse || promptOpen) ? Theme.elevated : "transparent"
         Behavior on color { ColorAnimation { duration: Theme.animFast } }
+
+        function submitPassphrase() {
+            if (field.text.length === 0 || net.busy) return;
+            net.connectWithPassphrase(row.ssid, field.text);
+        }
+        onPromptOpenChanged: {
+            field.text = "";
+            if (promptOpen) field.forceActiveFocus();
+        }
 
         Connections {
             target: wrow.network
@@ -404,7 +415,10 @@ BarDrawer {
         }
 
         RowLayout {
-            anchors.fill: parent
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: parent.top
+            height: 30
             anchors.leftMargin: 6
             anchors.rightMargin: 8
             spacing: 6
@@ -455,12 +469,73 @@ BarDrawer {
         }
         MouseArea {
             id: rowMa
-            anchors.fill: parent
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: parent.top
+            height: 30
             anchors.rightMargin: 30
             hoverEnabled: true
             enabled: !net.busy
             cursorShape: Qt.PointingHandCursor
-            onClicked: net.tapRow(wrow.row)
+            onClicked: wrow.promptOpen ? net.cancelPassword() : net.tapRow(wrow.row)
+        }
+
+        // The prompt: a field with the check to its right. Enter / check connects, Esc cancels.
+        Rectangle {
+            visible: wrow.promptOpen
+            anchors.top: parent.top
+            anchors.topMargin: 32
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.leftMargin: 34
+            anchors.rightMargin: 8
+            height: 28
+            radius: Theme.radius
+            color: Theme.bg
+            border.width: 1
+            border.color: field.activeFocus ? Theme.accent : Theme.elevated
+            Behavior on border.color { ColorAnimation { duration: Theme.animFast } }
+            TextInput {
+                id: field
+                anchors.fill: parent
+                anchors.leftMargin: 8
+                anchors.rightMargin: 30
+                verticalAlignment: TextInput.AlignVCenter
+                echoMode: TextInput.Password
+                passwordCharacter: "*"
+                color: Theme.text
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSize
+                clip: true
+                selectByMouse: true
+                Keys.onReturnPressed: wrow.submitPassphrase()
+                Keys.onEnterPressed: wrow.submitPassphrase()
+                Keys.onEscapePressed: net.cancelPassword()
+                Text {
+                    anchors.fill: parent
+                    verticalAlignment: Text.AlignVCenter
+                    visible: field.text.length === 0
+                    text: "Password"
+                    color: Theme.dim
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSize
+                }
+            }
+            Text {
+                anchors.right: parent.right
+                anchors.rightMargin: 8
+                anchors.verticalCenter: parent.verticalCenter
+                text: Theme.iCheck
+                color: field.text.length > 0 ? Theme.accent : Theme.dim
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSize + 1
+                MouseArea {
+                    anchors.fill: parent
+                    anchors.margins: -6
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: wrow.submitPassphrase()
+                }
+            }
         }
     }
 }

@@ -101,13 +101,22 @@ test("requiresCredentials, canForget, failureText", () => {
     assert.equal(M.canForget({ known: true, connected: true }), false);
     assert.equal(M.canForget(null), false);
     const R = { NoSecrets: 1, WifiClientDisconnected: 2, WifiClientFailed: 3, WifiAuthTimeout: 4, WifiNetworkLost: 5 };
-    assert.equal(M.failureText(1, true, R), "Passphrase required");
+    assert.equal(M.failureText(1, true, R), "Password rejected");
     assert.equal(M.failureText(4, true, R), "Wrong password");
     assert.equal(M.failureText(4, false, R), "Failed to connect");
     assert.equal(M.failureText(5, false, R), "Network lost");
     assert.equal(M.failureText(2, false, R), "Disconnected");
     assert.equal(M.failureText(3, false, R), "Connection failed");
     assert.equal(M.failureText(0, false, R), "Failed to connect");
+});
+
+test("shouldReprompt only for credential failures on credentialed networks", () => {
+    const R = { NoSecrets: 1, WifiClientDisconnected: 2, WifiClientFailed: 3, WifiAuthTimeout: 4, WifiNetworkLost: 5 };
+    assert.equal(M.shouldReprompt(1, true, R), true);
+    assert.equal(M.shouldReprompt(4, true, R), true);
+    assert.equal(M.shouldReprompt(4, false, R), false);
+    assert.equal(M.shouldReprompt(5, true, R), false);
+    assert.equal(M.shouldReprompt(0, true, R), false);
 });
 
 test("parseBandStatus, bandTitle", () => {

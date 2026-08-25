@@ -1,5 +1,6 @@
 import Quickshell
 import Quickshell.Hyprland
+import Quickshell.Wayland
 import QtQuick
 import QtQuick.Layouts
 
@@ -21,6 +22,15 @@ PanelWindow {
     // Rows (every module pill is) -- see anchorEdge.
     property Item anchorItem: null
     default property alias content: col.data
+
+    // Keyboard: None by default (the bar is mouse-driven). A drawer with a text field sets
+    // wantsKeyboard so Hyprland lets keys through once the focus grab lands on it, and
+    // keyboardExclusive while a field is open so a prompt opened by a bar click -- with no
+    // click ever landing inside this surface -- still receives typing.
+    property bool wantsKeyboard: false
+    property bool keyboardExclusive: false
+    WlrLayershell.keyboardFocus: !wantsKeyboard ? WlrKeyboardFocus.None
+                               : (keyboardExclusive ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.OnDemand)
 
     readonly property bool shown: barWindow.openPopout === key
 
