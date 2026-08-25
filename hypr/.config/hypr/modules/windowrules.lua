@@ -28,13 +28,6 @@ hl.window_rule({
     float = true,
 })
 
--- Float + center zenity dialogs (Wi-Fi password prompt, errors).
-hl.window_rule({
-    name  = "float-zenity",
-    match = { class = "^(zenity)$" },
-    float = true,
-})
-
 -- Float + center the Bitwarden extension unlock popup (Brave).
 hl.window_rule({
     name  = "float-bitwarden-popup",

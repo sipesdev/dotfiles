@@ -149,7 +149,7 @@ it fails to load, notifications are down until it loads again. That is what make
   `key\tvalue` lines; nothing when there is no route.
 - `wifi-band` — show (`band`/`available`/`selected`) or pin (`auto|2.4|5|6`) the active Wi-Fi profile's
   `802-11-wireless.band`, reverting if the reconnect fails.
-- `wifi-connect`, `web2app`, `web2app-remove`.
+- `web2app`, `web2app-remove`.
 
 ## Conventions
 - **No emojis in any source file or comment** — hard rule, no exceptions.
@@ -168,6 +168,7 @@ to the non-linking forms — a code span (`` `hyprwm/aquamarine#324` ``) or the 
 use the autolinking form only when the mention is deliberately meant for upstream. **PWAs only, no project
 source repos**. Only the named packages are stowed, and `.gitignore` backstops secrets (`.env`, keys,
 `*_history`, caches). **Never commit tokens, keys, or passwords** — scripts here read credentials at
-runtime (e.g. `wifi-connect` prompts via zenity), nothing is hardcoded. Keep it that way.
+runtime (the Network drawer's inline prompt hands a Wi-Fi key to NetworkManager through Quickshell's
+`connectWithPsk`, never on a command line), nothing is hardcoded. Keep it that way.
 - **System files (`etc/`)** are not stowed: `make dns` installs `etc/NetworkManager/conf.d/20-dns.conf`
   with sudo (Cloudflare global DNS, no switcher by design); verify with `grep nameserver /etc/resolv.conf`.
