@@ -60,7 +60,6 @@ test("statusText precedence", () => {
     assert.equal(B.statusText({ connected: true, section: "known" }, "", S), "Connected");
     assert.equal(B.statusText({ connected: false, section: "known" }, "connecting", S), "Connecting…");
     assert.equal(B.statusText({ connected: false, section: "discovered" }, "pairing", S), "Connecting…");
-    assert.equal(B.statusText({ connected: false, section: "known" }, "powering", S), "Connecting…");
     assert.equal(B.statusText({ connected: false, section: "known", state: 3 }, "", S), "Connecting…");
     assert.equal(B.statusText({ connected: false, section: "discovered", pairing: true }, "", S), "Connecting…");
     assert.equal(B.statusText({ connected: false, section: "known" }, "", S), "");

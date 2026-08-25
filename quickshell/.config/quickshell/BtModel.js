@@ -80,7 +80,7 @@ function statusText(row, action, S) {
         if (row.batteryAvailable) { var b = Number(row.battery || 0); return Math.round(b > 1 ? b : b * 100) + "%"; }
         return row.section === "connected" ? "" : "Connected";
     }
-    if (action === "connecting" || action === "pairing" || action === "powering"
+    if (action === "connecting" || action === "pairing"
         || row.state === e.Connecting || row.pairing) return "Connecting…";
     return "";
 }

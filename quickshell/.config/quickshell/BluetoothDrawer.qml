@@ -30,10 +30,11 @@ BarDrawer {
     //    connect / pair / rename; the rows also read state, battery and pairing. ──
     readonly property var groups: BtModel.deviceLists(devices)
     readonly property bool showDiscovered: adapter !== null && adapter.discovering
-    readonly property var connectedRows: groups.connected.map(function (d) {
+    readonly property var connectedRows: !Sys.btOn ? [] : groups.connected.map(function (d) {
         var r = BtModel.deviceRow(d, "connected"); r.header = ""; r.divider = false; return r;
     })
     readonly property var scrollRows: {
+        if (!Sys.btOn) return [];   // off: nothing to tap (connecting would first have to power the radio)
         var rows = groups.known.map(function (d) { return BtModel.deviceRow(d, "known"); });
         if (showDiscovered) rows = rows.concat(groups.discovered.map(function (d) { return BtModel.deviceRow(d, "discovered"); }));
         for (var i = 0; i < rows.length; i++) {
@@ -54,7 +55,7 @@ BarDrawer {
         return null;
     }
 
-    // ── Pending actions: address -> "powering" | "pairing" | "connecting" | "disconnecting" |
+    // ── Pending actions: address -> "pairing" | "connecting" | "disconnecting" |
     //    "forgetting". Kept here, not on the row, so it survives a row moving between sections;
     //    cleared when BlueZ confirms, or wholesale by the 20 s bail-out (which outlasts BlueZ's
     //    own pairing and connect timeouts). ──
@@ -65,20 +66,15 @@ BarDrawer {
     }
     Timer { id: pendingTimeout; interval: 20000; onTriggered: bt.pending = ({}) }
     onGroupsChanged: syncPending()
-    Connections { target: bt.adapter; function onEnabledChanged() { bt.syncPending() } }
 
     // Advance each in-flight action against the live device -- Omarchy's sequencing:
-    // powering -> (adapter up) -> pair or connect; pairing -> (bonded) -> trust + connect;
+    // pairing -> (bonded) -> trust + connect;
     // connecting -> connected; disconnecting -> disconnected; forgetting -> gone or unpaired.
     function syncPending() {
         var next = BtModel.cloneMap(pending), changed = false;
         for (var address in next) {
             var action = next[address], d = deviceFor(address), done = false;
-            if (action === "powering" && Sys.btOn && d) {
-                if (d.paired || d.bonded || d.trusted) { d.trusted = true; d.connect(); next[address] = "connecting"; }
-                else { d.pair(); next[address] = "pairing"; }
-                changed = true;
-            } else if (action === "pairing" && d && (d.paired || d.bonded) && !d.pairing) {
+            if (action === "pairing" && d && (d.paired || d.bonded) && !d.pairing) {
                 d.trusted = true; d.connect(); next[address] = "connecting"; changed = true;
             } else if ((action === "connecting" || action === "pairing") && d && d.connected) {
                 scheduleAudioSwitch(d); done = true;
@@ -94,7 +90,6 @@ BarDrawer {
     function connectDevice(row) {
         var d = deviceFor(row.address);
         if (!d || d.connected) return;
-        if (!Sys.btOn) { setPending(row.address, "powering"); Sys.setBluetoothPower(true); return; }   // connecting turns the radio on
         if (d.paired || d.bonded || d.trusted) { d.trusted = true; d.connect(); setPending(row.address, "connecting"); }
         else { d.pair(); setPending(row.address, "pairing"); }   // bt-agent (hypr autostart) authorizes the bond
     }
