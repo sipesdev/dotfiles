@@ -24,13 +24,12 @@ PanelWindow {
     default property alias content: col.data
 
     // Keyboard: None by default (the bar is mouse-driven). A drawer with a text field sets
-    // wantsKeyboard so Hyprland lets keys through once the focus grab lands on it, and
-    // keyboardExclusive while a field is open so a prompt opened by a bar click -- with no
-    // click ever landing inside this surface -- still receives typing.
+    // wantsKeyboard: OnDemand is enough, because the focus grab hands this surface keyboard
+    // focus even when no click ever lands inside it. The mode must stay FIXED while mapped:
+    // switching it (e.g. to Exclusive when a field opens) makes Hyprland refocus the surface,
+    // which clears the grab and closes the drawer (measured 2026-08-24).
     property bool wantsKeyboard: false
-    property bool keyboardExclusive: false
-    WlrLayershell.keyboardFocus: !wantsKeyboard ? WlrKeyboardFocus.None
-                               : (keyboardExclusive ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.OnDemand)
+    WlrLayershell.keyboardFocus: wantsKeyboard ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
 
     readonly property bool shown: barWindow.openPopout === key
 

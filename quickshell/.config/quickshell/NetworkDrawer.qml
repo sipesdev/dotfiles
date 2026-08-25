@@ -20,7 +20,6 @@ BarDrawer {
     readonly property string home: Quickshell.env("HOME")
     readonly property int maxListH: Math.round((Screen.height > 0 ? Screen.height : 1000) * 0.5)
     wantsKeyboard: true
-    keyboardExclusive: passwordSsid !== ""
 
     onShownChanged: {
         if (Sys.wifiDevice) Sys.wifiDevice.scannerEnabled = shown;   // scan only while open
