@@ -1,6 +1,6 @@
 import QtQuick
 
-// Minimal custom slider (value 0..1) — matte-black styled, no Controls dep.
+// Minimal custom slider (value 0..1) — matte-black styled, no Controls dep. Click, drag, or wheel.
 Item {
     id: s
     property real value: 0
@@ -62,6 +62,16 @@ Item {
         property bool dragging: false
         property real pressX: 0
         readonly property int dragThreshold: 5
+        // Wheel nudges the value 5% per notch (touchpad fractions accumulate to whole notches);
+        // the parent still owns the value, exactly as for a click.
+        property real wheelAccum: 0
+        onWheel: (wheel) => {
+            wheelAccum += wheel.angleDelta.y / 120;
+            var notches = Math.trunc(wheelAccum);
+            if (notches === 0) return;
+            wheelAccum -= notches;
+            s.moved(Math.max(0, Math.min(1, s.clamped + notches * 0.05)));
+        }
         function setAt(px) {
             // Don't write s.value here — that would clobber the parent's `value:`
             // binding and stop the slider from tracking the real source (brightness/
