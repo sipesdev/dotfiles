@@ -6,7 +6,7 @@
 // No QML references; tested by tests/quickshell/listsync.test.js against a fake model.
 
 function sync(model, rows, key) {
-    var want = [], seen = {};
+    var want = [], seen = Object.create(null);   // no prototype: a row keyed "constructor" is just a row
     var input = Array.isArray(rows) ? rows : [];
     for (var i = 0; i < input.length; i++) {
         var k = String(input[i][key]);

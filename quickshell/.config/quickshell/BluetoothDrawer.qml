@@ -139,7 +139,6 @@ BarDrawer {
 
     // ── Hero: glyph, "Bluetooth", scan status, the radio switch ──
     DrawerHero {
-        id: hero
         glyph: Theme.btGlyph(Sys.btOn, Sys.btConnected)
         glyphColor: Sys.btOn ? Theme.accent : Theme.dim
         title: "Bluetooth"

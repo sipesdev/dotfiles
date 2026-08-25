@@ -49,6 +49,12 @@ test("reordered keys move instead of being recreated", () => {
     assert.ok(!m.ops.some(op => op.startsWith("insert") || op.startsWith("remove")));
 });
 
+test("keys that collide with Object.prototype members are ordinary keys", () => {
+    const m = new FakeModel();
+    L.sync(m, [{ id: "constructor" }, { id: "toString" }, { id: "a" }], "id");
+    assert.deepEqual(keys(m), ["constructor", "toString", "a"]);
+});
+
 test("duplicate keys keep the first occurrence; null clears", () => {
     const m = new FakeModel();
     L.sync(m, [{ id: "a", v: 1 }, { id: "a", v: 2 }, { id: "b" }], "id");
