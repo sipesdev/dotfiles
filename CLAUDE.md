@@ -112,7 +112,7 @@ close against BlueZ's confirmed state). Primitives: `DrawerHero`, `SectionHeader
 `ListRow`, `SliderRow`, `TogglePill`/`ToggleRow`, `Pill`, `PowerBtn`, `BarSlider`. Logic that can be
 pure lives in `NetModel.js` / `AudioModel.js` / `PowerModel.js` / `BtModel.js` / `ListSync.js` (in-place `ListModel` updates, so list delegates and their hover survive a refresh) and is tested by
 `make test` from `tests/quickshell/` (deliberately outside every stow package). The network drawer
-polls `~/.local/bin/network-probe` (1.5 s) and `~/.local/bin/wifi-band` (4 s) only while open.
+polls `~/.local/bin/network-probe` (1.5 s) only while open.
 
 ### Notifications (`Notifs.qml`) — Quickshell owns the bus, not mako
 `Notifs.qml` is the notification daemon: it owns `org.freedesktop.Notifications`, caps every notification
@@ -147,8 +147,6 @@ it fails to load, notifications are down until it loads again. That is what make
   article to plain text via `python` (no lynx/w3m/pandoc on this box).
 - `network-probe` — default-route interface snapshot (iface/ip/gateway/rx/tx bytes + a 1.1.1.1 ping) as
   `key\tvalue` lines; nothing when there is no route.
-- `wifi-band` — show (`band`/`available`/`selected`) or pin (`auto|2.4|5|6`) the active Wi-Fi profile's
-  `802-11-wireless.band`, reverting if the reconnect fails.
 - `web2app`, `web2app-remove`.
 
 ## Conventions

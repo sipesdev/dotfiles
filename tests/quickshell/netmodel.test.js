@@ -119,15 +119,6 @@ test("shouldReprompt only for credential failures on credentialed networks", () 
     assert.equal(M.shouldReprompt(0, true, R), false);
 });
 
-test("parseBandStatus, bandTitle", () => {
-    assert.deepEqual(M.parseBandStatus("band\t5\navailable\t2.4 5\nselected\tauto\n"),
-        { band: "5", selected: "auto", available: ["2.4", "5"] });
-    assert.deepEqual(M.parseBandStatus(""), { band: "", selected: "auto", available: [] });
-    assert.equal(M.bandTitle("auto", "5"), "WI-FI BAND: 5GHZ");
-    assert.equal(M.bandTitle("auto", ""), "WI-FI BAND");
-    assert.equal(M.bandTitle("5", "5"), "WI-FI BAND");
-});
-
 test("formatLinkSpeed", () => {
     assert.equal(M.formatLinkSpeed(1000), "1 Gbit");
     assert.equal(M.formatLinkSpeed(2500), "2.5 Gbit");

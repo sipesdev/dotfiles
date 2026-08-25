@@ -7,8 +7,8 @@ import "NetModel.js" as NetModel
 import "ListSync.js" as ListSync
 
 // Network module: connection hero + radio toggle, live stats from network-probe (Omarchy's
-// eight: ping, packet loss, receiving, sending, downloaded, uploaded, IP, gateway), Wi-Fi band
-// pinning via wifi-band, and the Wi-Fi list split into KNOWN / OTHER networks. Scanning,
+// eight: ping, packet loss, receiving, sending, downloaded, uploaded, IP, gateway) and the
+// Wi-Fi list split into KNOWN / OTHER networks. Scanning,
 // connecting, disconnecting and forgetting go through Quickshell's NetworkManager backend; a
 // secured network without a stored key gets an inline passphrase prompt under its row (Omarchy),
 // which connectWithPsk() also uses to replace a rejected key.
@@ -45,58 +45,9 @@ BarDrawer {
     }
     function updateDetails(raw) {
         var next = NetModel.parseKeyValue(raw);
-        // Mid-reassociation (band pin) there is no route for a beat: keep the last sample
-        // rather than blanking the grid.
-        if (bandBusy && !next.iface) return;
         info = next;
         thru = NetModel.throughputState(thru, next, Date.now() / 1000);
         ping = NetModel.pingState(ping, next, 24, 5);
-    }
-
-    // ── Wi-Fi band (wifi-band, 4 s while open and connected) ─────────
-    property string bandCurrent: ""
-    property string bandSelected: "auto"
-    property var bandAvailable: []
-    property string pendingBand: ""
-    readonly property bool bandBusy: pendingBand !== ""
-    readonly property string bandEffective: bandBusy ? pendingBand : bandSelected
-    readonly property bool bandPinned: bandEffective !== "auto"
-    // Only on Wi-Fi, and only when the network answers on more than one band (or a pin is
-    // in force): a single-band AP has nothing to toggle.
-    readonly property bool canSelectBand: (Sys.wifiConnected || bandBusy) && (bandAvailable.length > 1 || bandPinned)
-    readonly property bool bandPillsVisible: canSelectBand && bandPinned
-    Process {
-        id: bandRead
-        command: [net.home + "/.local/bin/wifi-band"]
-        stdout: StdioCollector { onStreamFinished: net.updateBand(text) }
-    }
-    Timer {
-        interval: 4000; repeat: true; triggeredOnStart: true
-        running: net.shown && Sys.wifiConnected
-        onTriggered: if (!bandRead.running) bandRead.running = true
-    }
-    function updateBand(raw) {
-        var s = NetModel.parseBandStatus(raw);
-        if (bandBusy && s.available.length === 0) return;   // mid-reconnect: nothing to show yet
-        bandCurrent = s.band; bandSelected = s.selected; bandAvailable = s.available;
-    }
-    Process {
-        id: bandSet
-        onExited: (code) => {
-            if (code === 0) net.bandSelected = net.pendingBand;
-            net.pendingBand = "";
-            bandRead.running = true;
-        }
-    }
-    function setBand(b) {
-        if (!b || bandSet.running) return;
-        pendingBand = b;
-        bandSet.command = [net.home + "/.local/bin/wifi-band", b];
-        bandSet.running = true;
-    }
-    function toggleBandAuto() {
-        if (bandSelected !== "auto") setBand("auto");
-        else if (bandCurrent !== "") setBand(bandCurrent);   // pin to the band in use
     }
 
     // ── Wi-Fi list ───────────────────────────────────────────────────
@@ -272,59 +223,11 @@ BarDrawer {
         StatValue { text: net.info.gateway || "--"; copyable: !!net.info.gateway }
     }
 
-    // ── Wi-Fi: band + network list ───────────────────────────────────
+    // ── Wi-Fi: network list ──────────────────────────────────────────
     ColumnLayout {
         Layout.fillWidth: true
         visible: Sys.wifiDevice !== null && Sys.wifiEnabled
         spacing: 4
-
-        Rectangle { Layout.fillWidth: true; height: 1; color: Theme.elevated; visible: net.canSelectBand }
-        SectionHeader {
-            Layout.fillWidth: true
-            visible: net.canSelectBand
-            text: NetModel.bandTitle(net.bandEffective, net.bandCurrent)
-            Text {
-                anchors.verticalCenter: parent.verticalCenter
-                text: "AUTOMATIC"
-                color: Theme.dim
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSize - 3
-                font.bold: true
-                font.letterSpacing: 1.2
-            }
-            TogglePill {
-                anchors.verticalCenter: parent.verticalCenter
-                width: 34; height: 18
-                on: !net.bandPinned
-                enabled: !net.bandBusy
-                onToggled: net.toggleBandAuto()
-            }
-        }
-        // Collapsing pill row: animates its height so toggling Automatic slides the list
-        // into place instead of snapping; `visible` only drops at a real zero.
-        Item {
-            Layout.fillWidth: true
-            clip: true
-            visible: height > 0
-            implicitHeight: net.bandPillsVisible ? pillRow.implicitHeight : 0
-            opacity: net.bandPillsVisible ? 1 : 0
-            Behavior on implicitHeight { NumberAnimation { duration: Theme.animMed; easing.type: Easing.OutCubic } }
-            Behavior on opacity { NumberAnimation { duration: Theme.animMed; easing.type: Easing.OutCubic } }
-            RowLayout {
-                id: pillRow
-                width: parent.width
-                spacing: Theme.gap
-                Repeater {
-                    model: net.bandAvailable
-                    delegate: Pill {
-                        required property var modelData
-                        label: modelData + " GHz"
-                        active: net.bandEffective === modelData
-                        onClicked: net.setBand(modelData)
-                    }
-                }
-            }
-        }
 
         Rectangle { Layout.fillWidth: true; height: 1; color: Theme.elevated }
         Flickable {

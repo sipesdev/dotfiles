@@ -1,4 +1,4 @@
-// Pure functions behind NetworkPopout: parsing the network-probe / wifi-band scripts,
+// Pure functions behind NetworkPopout: parsing the network-probe script,
 // rate and ping bookkeeping, formatting. No QML or Quickshell references, so Node can
 // run the tests in tests/quickshell/netmodel.test.js.
 
@@ -159,17 +159,6 @@ function shouldReprompt(reason, needsCredentials, R) {
     return reason === r.NoSecrets || reason === r.WifiAuthTimeout;
 }
 
-function parseBandStatus(raw) {
-    var kv = parseKeyValue(raw);
-    var tokens = String(kv.available || "").split(" "), available = [];
-    for (var i = 0; i < tokens.length; i++) if (tokens[i] !== "") available.push(tokens[i]);
-    return { band: kv.band || "", selected: kv.selected || "auto", available: available };
-}
-// Under Automatic the pills are hidden, so the header carries the live band.
-function bandTitle(selected, current) {
-    if (selected !== "auto" || !current) return "WI-FI BAND";
-    return "WI-FI BAND: " + current.toUpperCase() + "GHZ";
-}
 function formatLinkSpeed(mbps) {
     var v = parseInt(mbps, 10);
     if (!v || v < 0) return "";
@@ -184,6 +173,6 @@ if (typeof module !== "undefined") {
         formatPacketLoss: formatPacketLoss, wifiRow: wifiRow, sortWifiRows: sortWifiRows,
         wifiSectionTitle: wifiSectionTitle, requiresCredentials: requiresCredentials,
         canForget: canForget, failureText: failureText, shouldReprompt: shouldReprompt,
-        parseBandStatus: parseBandStatus, bandTitle: bandTitle, formatLinkSpeed: formatLinkSpeed
+        formatLinkSpeed: formatLinkSpeed
     };
 }
