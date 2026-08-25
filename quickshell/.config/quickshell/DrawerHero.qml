@@ -12,7 +12,6 @@ Item {
     property bool toggleEnabled: true
     property bool on: false
     signal toggled()
-    property alias statusOpacity: statusText.opacity
 
     Layout.fillWidth: true
     implicitHeight: Math.max(col.implicitHeight, 26)
@@ -42,7 +41,6 @@ Item {
                 font.bold: true
             }
             Text {
-                id: statusText
                 visible: hero.status !== ""
                 Layout.fillWidth: true
                 text: hero.status

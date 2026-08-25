@@ -5,8 +5,8 @@ import QtQuick.Layouts
 import "BtModel.js" as BtModel
 import "ListSync.js" as ListSync
 
-// Bluetooth module, modelled on Omarchy's bluetooth panel: a hero with the radio switch and a
-// rotating phrase while the scan runs; CONNECTED rows above a capped, scrollable list of PAIRED
+// Bluetooth module, modelled on Omarchy's bluetooth panel: a hero with the radio switch and
+// "Searching..." while the scan runs; CONNECTED rows above a capped, scrollable list of PAIRED
 // then AVAILABLE devices (AVAILABLE only while BlueZ reports discovery); one-line rows with a
 // live status (Connecting… / Disconnecting… / Forgetting… / battery %) and a forget button on
 // hover for remembered devices; connecting an audio device makes it the default output once its
@@ -137,26 +137,13 @@ BarDrawer {
         }
     }
 
-    // ── Hero: glyph, "Bluetooth", a rotating phrase while scanning, the radio switch ──
-    readonly property var phrases: ["Untangling wires", "Streaming vikings", "Pairing mysteries", "Herding headsets",
-                                    "Taming radios", "Summoning speakers", "Wrangling codecs", "Polishing packets"]
-    property int phraseIndex: 0
-    readonly property bool rotating: bt.shown && Sys.btOn
-    Timer { interval: 2800; repeat: true; running: bt.rotating; onTriggered: phraseSwap.restart() }
-    SequentialAnimation {
-        id: phraseSwap
-        NumberAnimation { target: hero; property: "statusOpacity"; to: 0; duration: 180; easing.type: Easing.OutQuad }
-        ScriptAction { script: bt.phraseIndex = (bt.phraseIndex + 1) % bt.phrases.length }
-        NumberAnimation { target: hero; property: "statusOpacity"; to: 1; duration: 260; easing.type: Easing.InQuad }
-    }
-    onRotatingChanged: if (!rotating) { phraseSwap.stop(); hero.statusOpacity = 1; }   // never leave "Turned off" half-faded
-
+    // ── Hero: glyph, "Bluetooth", scan status, the radio switch ──
     DrawerHero {
         id: hero
         glyph: Theme.btGlyph(Sys.btOn, Sys.btConnected)
         glyphColor: Sys.btOn ? Theme.accent : Theme.dim
         title: "Bluetooth"
-        status: !bt.adapter ? "No adapter" : (Sys.btOn ? bt.phrases[bt.phraseIndex] : "Turned off")
+        status: !bt.adapter ? "No adapter" : (!Sys.btOn ? "Turned off" : (bt.adapter.discovering ? "Searching..." : ""))
         toggleVisible: bt.adapter !== null
         on: Sys.btOn
         onToggled: Sys.setBluetoothPower(!Sys.btOn)
