@@ -141,8 +141,9 @@ function requiresCredentials(security, openValue, oweValue) {
 function canForget(row) { return !!(row && row.known && !row.connected); }
 function failureText(reason, needsCredentials, R) {
     var r = R || {};
-    if (needsCredentials && reason === r.NoSecrets) return "Password rejected";   // NM reports a supplicant psk mismatch as no-secrets
-    if (needsCredentials && reason === r.WifiAuthTimeout) return "Wrong password";
+    // The supplicant reports a timed-out 4-way handshake exactly like a wrong key, and NM then
+    // surfaces either as no-secrets / auth-timeout: neither proves the key is wrong.
+    if (needsCredentials && (reason === r.NoSecrets || reason === r.WifiAuthTimeout)) return "Couldn't authenticate";
     if (reason === r.WifiNetworkLost) return "Network lost";
     if (reason === r.WifiClientDisconnected) return "Disconnected";
     if (reason === r.WifiClientFailed) return "Connection failed";

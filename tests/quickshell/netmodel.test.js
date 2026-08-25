@@ -101,8 +101,8 @@ test("requiresCredentials, canForget, failureText", () => {
     assert.equal(M.canForget({ known: true, connected: true }), false);
     assert.equal(M.canForget(null), false);
     const R = { NoSecrets: 1, WifiClientDisconnected: 2, WifiClientFailed: 3, WifiAuthTimeout: 4, WifiNetworkLost: 5 };
-    assert.equal(M.failureText(1, true, R), "Password rejected");
-    assert.equal(M.failureText(4, true, R), "Wrong password");
+    assert.equal(M.failureText(1, true, R), "Couldn't authenticate");
+    assert.equal(M.failureText(4, true, R), "Couldn't authenticate");
     assert.equal(M.failureText(4, false, R), "Failed to connect");
     assert.equal(M.failureText(5, false, R), "Network lost");
     assert.equal(M.failureText(2, false, R), "Disconnected");

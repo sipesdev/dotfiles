@@ -131,6 +131,9 @@ BarDrawer {
     property string actionKind: ""
     property string failureSsid: ""
     property string failureReason: ""
+    property int connectRetries: 0        // automatic re-activations spent on the current connect
+    property bool retrying: false
+    property string typedSsid: ""         // the SSID whose key was typed for the current connect, if any
     readonly property bool busy: actionKind !== ""
     readonly property var failReasons: ({
         NoSecrets: ConnectionFailReason.NoSecrets,
@@ -148,30 +151,43 @@ BarDrawer {
         onTriggered: {
             if (!net.actionKind) return;
             net.failureSsid = net.actionSsid; net.failureReason = "Timed out";
-            net.actionSsid = ""; net.actionKind = "";
+            net.actionSsid = ""; net.actionKind = ""; net.retrying = false; net.typedSsid = "";
             net.syncRows();
         }
     }
     function runAction(kind, network, fn) {
         if (busy || !network) return;
         actionSsid = network.name; actionKind = kind;
-        failureSsid = ""; failureReason = "";
+        failureSsid = ""; failureReason = ""; connectRetries = 0; retrying = false;
         fn(network);
         actionTimeout.restart();
     }
     function clearAction() {
         if (actionKind === "connect") passwordSsid = "";   // the key worked: drop the prompt
         actionTimeout.stop();
-        actionSsid = ""; actionKind = ""; failureSsid = ""; failureReason = "";
+        actionSsid = ""; actionKind = ""; failureSsid = ""; failureReason = ""; retrying = false; typedSsid = "";
         syncRows();
     }
     function failAction(network, reason) {
         if (!network || !actionKind || actionSsid !== network.name) return;
+        var credential = NetModel.shouldReprompt(reason, requiresCredentials(network.security), failReasons);
+        // This card's 4-way handshake times out on some APs, and NetworkManager reports that
+        // exactly like a wrong key (no-secrets after two supplicant failures). Give a connect one
+        // more activation before believing it; the key is stored on the profile either way.
+        if (actionKind === "connect" && credential && connectRetries < 1) {
+            connectRetries += 1;
+            retrying = true;
+            network.connect();
+            actionTimeout.restart();
+            return;
+        }
         actionTimeout.stop();
         failureSsid = actionSsid;
         failureReason = NetModel.failureText(reason, requiresCredentials(network.security), failReasons);
-        if (NetModel.shouldReprompt(reason, requiresCredentials(network.security), failReasons)) passwordSsid = network.name;   // ask again, reason shown
-        actionSsid = ""; actionKind = "";
+        // Only a key typed for this very attempt gets the prompt back: a saved network's key
+        // once worked, so it is asked to retry, not to retype.
+        if (credential && typedSsid === network.name) passwordSsid = network.name;
+        actionSsid = ""; actionKind = ""; retrying = false; typedSsid = "";
         syncRows();
     }
     function checkActionCompletion(n) {
@@ -187,6 +203,7 @@ BarDrawer {
     function connectWithPassphrase(ssid, psk) {
         var n = networkForSsid(ssid);
         if (!n) return;
+        typedSsid = ssid;
         runAction("connect", n, function (x) { x.connectWithPsk(psk); });   // stores or replaces the key, then activates
     }
     function tapRow(row) {
@@ -385,7 +402,7 @@ BarDrawer {
         readonly property bool isFailed: net.failureReason !== "" && net.failureSsid === row.ssid
         readonly property bool promptOpen: net.passwordSsid === row.ssid && !isBusy
         readonly property string status: isBusy
-              ? ({ connect: "Connecting...", disconnect: "Disconnecting...", forget: "Forgetting..." })[net.actionKind]
+              ? (net.retrying ? "Retrying..." : ({ connect: "Connecting...", disconnect: "Disconnecting...", forget: "Forgetting..." })[net.actionKind])
               : isFailed ? net.failureReason
               : row.connected ? "Connected" : ""
 
