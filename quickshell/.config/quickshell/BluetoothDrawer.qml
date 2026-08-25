@@ -3,6 +3,7 @@ import Quickshell.Services.Pipewire
 import QtQuick
 import QtQuick.Layouts
 import "BtModel.js" as BtModel
+import "ListSync.js" as ListSync
 
 // Bluetooth module, modelled on Omarchy's bluetooth panel: a hero with the radio switch and a
 // rotating phrase while the scan runs; CONNECTED rows above a capped, scrollable list of PAIRED
@@ -29,12 +30,24 @@ BarDrawer {
     //    connect / pair / rename; the rows also read state, battery and pairing. ──
     readonly property var groups: BtModel.deviceLists(devices)
     readonly property bool showDiscovered: adapter !== null && adapter.discovering
-    readonly property var connectedRows: groups.connected.map(function (d) { return BtModel.deviceRow(d, "connected"); })
+    readonly property var connectedRows: groups.connected.map(function (d) {
+        var r = BtModel.deviceRow(d, "connected"); r.header = ""; r.divider = false; return r;
+    })
     readonly property var scrollRows: {
         var rows = groups.known.map(function (d) { return BtModel.deviceRow(d, "known"); });
         if (showDiscovered) rows = rows.concat(groups.discovered.map(function (d) { return BtModel.deviceRow(d, "discovered"); }));
+        for (var i = 0; i < rows.length; i++) {
+            rows[i].header = BtModel.scrollSectionTitle(rows, i);
+            rows[i].divider = i > 0 && rows[i].header !== "";
+        }
         return rows;
     }
+    // ListModels updated in place from the bindings above, so a hovered row survives a refresh.
+    ListModel { id: connectedModel }
+    ListModel { id: scrollModel }
+    onConnectedRowsChanged: ListSync.sync(connectedModel, connectedRows, "address")
+    onScrollRowsChanged: ListSync.sync(scrollModel, scrollRows, "address")
+    Component.onCompleted: { ListSync.sync(connectedModel, connectedRows, "address"); ListSync.sync(scrollModel, scrollRows, "address"); }
     readonly property bool empty: connectedRows.length === 0 && scrollRows.length === 0
     function deviceFor(address) {
         for (var i = 0; i < devices.length; i++) if (devices[i] && devices[i].address === address) return devices[i];
@@ -158,8 +171,8 @@ BarDrawer {
         spacing: 2
         SectionHeader { Layout.fillWidth: true; text: "CONNECTED" }
         Repeater {
-            model: bt.connectedRows
-            delegate: BtRow { required property var modelData; row: modelData }
+            model: connectedModel
+            delegate: BtRow { required property var model; row: model }
         }
     }
     Rectangle {
@@ -184,17 +197,15 @@ BarDrawer {
             width: flick.width
             spacing: 2
             Repeater {
-                model: bt.scrollRows
+                model: scrollModel
                 delegate: ColumnLayout {
                     id: cell
-                    required property var modelData
-                    required property int index
-                    readonly property string title: BtModel.scrollSectionTitle(bt.scrollRows, index)
+                    required property var model
                     Layout.fillWidth: true
                     spacing: 2
-                    Rectangle { Layout.fillWidth: true; height: 1; color: Theme.elevated; visible: cell.index > 0 && cell.title !== "" }
-                    SectionHeader { Layout.fillWidth: true; visible: cell.title !== ""; text: cell.title }
-                    BtRow { row: cell.modelData }
+                    Rectangle { Layout.fillWidth: true; height: 1; color: Theme.elevated; visible: cell.model.divider }
+                    SectionHeader { Layout.fillWidth: true; visible: cell.model.header !== ""; text: cell.model.header }
+                    BtRow { row: cell.model }
                 }
             }
         }

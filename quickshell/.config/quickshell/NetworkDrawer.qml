@@ -4,6 +4,7 @@ import Quickshell.Networking
 import QtQuick
 import QtQuick.Layouts
 import "NetModel.js" as NetModel
+import "ListSync.js" as ListSync
 
 // Network module: connection hero + radio toggle, live stats from network-probe (Omarchy's
 // eight: ping, packet loss, receiving, sending, downloaded, uploaded, IP, gateway), Wi-Fi band
@@ -97,7 +98,7 @@ BarDrawer {
     }
 
     // ── Wi-Fi list ───────────────────────────────────────────────────
-    property var rows: []
+    ListModel { id: rowModel }   // updated in place by syncRows, so hovered rows survive a rescan
     function networkForSsid(ssid) {
         var nets = Sys.wifiDevice && Sys.wifiDevice.networks ? Sys.wifiDevice.networks.values : [];
         for (var i = 0; i < nets.length; i++) if (nets[i] && nets[i].name === ssid) return nets[i];
@@ -113,7 +114,8 @@ BarDrawer {
             out.push(NetModel.wifiRow(n));
         }
         out = NetModel.sortWifiRows(out);
-        if (JSON.stringify(out) !== JSON.stringify(rows)) rows = out;
+        for (var k = 0; k < out.length; k++) out[k].header = NetModel.wifiSectionTitle(out, k);
+        ListSync.sync(rowModel, out, "ssid");
     }
     Connections {
         target: Sys.wifiDevice ? Sys.wifiDevice.networks : null
@@ -158,6 +160,7 @@ BarDrawer {
     function clearAction() {
         actionTimeout.stop();
         actionSsid = ""; actionKind = ""; failureSsid = ""; failureReason = "";
+        syncRows();
     }
     function failAction(network, reason) {
         if (!network || !actionKind || actionSsid !== network.name) return;
@@ -165,6 +168,7 @@ BarDrawer {
         failureSsid = actionSsid;
         failureReason = NetModel.failureText(reason, requiresCredentials(network.security), failReasons);
         actionSsid = ""; actionKind = "";
+        syncRows();
     }
     function checkActionCompletion(n) {
         if (!n || !actionKind || actionSsid !== n.name) return;
@@ -311,7 +315,7 @@ BarDrawer {
         Flickable {
             id: flick
             Layout.fillWidth: true
-            visible: net.rows.length > 0
+            visible: rowModel.count > 0
             implicitHeight: Math.min(listcol.implicitHeight, net.maxListH)
             contentHeight: listcol.implicitHeight
             clip: true
@@ -323,25 +327,24 @@ BarDrawer {
                 width: flick.width
                 spacing: 2
                 Repeater {
-                    model: net.rows
+                    model: rowModel
                     delegate: ColumnLayout {
                         id: cell
-                        required property var modelData
-                        required property int index
+                        required property var model
                         Layout.fillWidth: true
                         spacing: 2
                         SectionHeader {
                             Layout.fillWidth: true
                             visible: text !== ""
-                            text: NetModel.wifiSectionTitle(net.rows, cell.index)
+                            text: cell.model.header
                         }
-                        WifiRow { row: cell.modelData }
+                        WifiRow { row: cell.model }
                     }
                 }
             }
         }
         Text {
-            visible: net.rows.length === 0
+            visible: rowModel.count === 0
             text: "Searching..."
             color: Theme.dim
             font.family: Theme.fontFamily

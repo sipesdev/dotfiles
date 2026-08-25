@@ -110,7 +110,7 @@ rfkill soft block so the choice survives a reboot) and the one discovery session
 drawer shares (`btDrawersOpen`, `btOwesDiscoveryStop`: scan only while a drawer is open, stopped after
 close against BlueZ's confirmed state). Primitives: `DrawerHero`, `SectionHeader`,
 `ListRow`, `SliderRow`, `TogglePill`/`ToggleRow`, `Pill`, `PowerBtn`, `BarSlider`. Logic that can be
-pure lives in `NetModel.js` / `AudioModel.js` / `PowerModel.js` / `BtModel.js` and is tested by
+pure lives in `NetModel.js` / `AudioModel.js` / `PowerModel.js` / `BtModel.js` / `ListSync.js` (in-place `ListModel` updates, so list delegates and their hover survive a refresh) and is tested by
 `make test` from `tests/quickshell/` (deliberately outside every stow package). The network drawer
 polls `~/.local/bin/network-probe` (1.5 s) and `~/.local/bin/wifi-band` (4 s) only while open.
 
