@@ -138,7 +138,7 @@ function wifiSectionTitle(rows, index) {
 function requiresCredentials(security, openValue, oweValue) {
     return security !== openValue && security !== oweValue;
 }
-function canForget(row) { return !!(row && row.known && !row.connected); }
+function canForget(row) { return !!(row && row.known); }   // forgetting a connected network disconnects it too
 function failureText(reason, needsCredentials, R) {
     var r = R || {};
     // The supplicant reports a timed-out 4-way handshake exactly like a wrong key, and NM then

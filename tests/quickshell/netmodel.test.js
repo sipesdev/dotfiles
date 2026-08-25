@@ -98,7 +98,7 @@ test("requiresCredentials, canForget, failureText", () => {
     assert.equal(M.requiresCredentials(OPEN, OPEN, OWE), false);
     assert.equal(M.requiresCredentials(OWE, OPEN, OWE), false);
     assert.equal(M.canForget({ known: true, connected: false }), true);
-    assert.equal(M.canForget({ known: true, connected: true }), false);
+    assert.equal(M.canForget({ known: true, connected: true }), true);
     assert.equal(M.canForget(null), false);
     const R = { NoSecrets: 1, WifiClientDisconnected: 2, WifiClientFailed: 3, WifiAuthTimeout: 4, WifiNetworkLost: 5 };
     assert.equal(M.failureText(1, true, R), "Couldn't authenticate");

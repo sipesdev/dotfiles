@@ -390,7 +390,7 @@ BarDrawer {
     // One network. Rows are primitive snapshots (NetModel.wifiRow); the live object is
     // resolved by SSID for signals and actions. Click: connected -> disconnect, known or open
     // -> connect, secured without a key -> the inline prompt opens under the row. Hover a
-    // known, idle row for the forget "x" at the right edge (the lock glyph otherwise marks
+    // remembered row for the forget "x" at the right edge (the lock glyph otherwise marks
     // secured networks).
     component WifiRow: Rectangle {
         id: wrow
@@ -410,7 +410,7 @@ BarDrawer {
         implicitHeight: promptOpen ? 64 : 30
         Behavior on implicitHeight { NumberAnimation { duration: Theme.animFast; easing.type: Easing.OutCubic } }
         radius: Theme.radius
-        color: (rowMa.containsMouse || promptOpen) ? Theme.elevated : "transparent"
+        color: (rowMa.containsMouse || rightMa.containsMouse || promptOpen) ? Theme.elevated : "transparent"
         Behavior on color { ColorAnimation { duration: Theme.animFast } }
 
         function submitPassphrase() {
