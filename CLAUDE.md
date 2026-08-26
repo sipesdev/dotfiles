@@ -67,6 +67,13 @@ and `hypr/modules/envs.lua` (in-session).
   KvLibadwaita is a user-space theme (no system package); it is NOT a dependency once vendored.
 - **Reload:** GTK/Qt do **not** hot-reload — relaunch the app. New env vars need a **re-login** (or a
   Quickshell process restart for the tray menus); `hyprctl reload` is not enough.
+- **LibreOffice** is pinned to the `gtk3` VCL backend (`SAL_USE_VCLPLUGIN=gtk3` in both env files) so it is
+  a GTK3 app for theming purposes — its menus, dialogs and toolbars read the stowed `gtk-3.0/settings.ini`
+  + `gtk.css`, nothing LibreOffice-side is configured. Nothing under `~/.config/libreoffice` is stowed:
+  LibreOffice rewrites `registrymodifications.xcu` atomically and would de-stow it. Icon theme left on auto
+  (Colibre Dark), no grammar checker — both by choice. Spellcheck/hyphenation are plain packages
+  (`hunspell-en_us`, `hyphen-en`) found via the compiled-in `/usr/share/{hunspell,hyphen}` paths — nothing
+  to enable.
 
 ## Hyprland (`hypr/`) — it's Lua, not hyprlang
 This build is configured in **Lua**, not the usual `.conf`/hyprlang. `hyprland.lua` is the entry point; it

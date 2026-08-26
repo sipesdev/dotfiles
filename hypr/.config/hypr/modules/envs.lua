@@ -17,6 +17,8 @@ hl.env("QT_AUTO_SCREEN_SCALE_FACTOR", "1")
 -- Qt theming (Kvantum matte-black for Qt5 & Qt6) -- login-phase copy lives in ~/.config/uwsm/env
 hl.env("QT_QPA_PLATFORMTHEME", "qt6ct")
 hl.env("QT_STYLE_OVERRIDE", "kvantum")
+-- LibreOffice: GTK3 widgets so it takes adw-gtk3-dark + the matte gtk.css -- login-phase copy lives in ~/.config/uwsm/env
+hl.env("SAL_USE_VCLPLUGIN", "gtk3")
 hl.env("MOZ_ENABLE_WAYLAND", "1")
 
 -- Electron / Chromium (Brave web apps, VS Code, etc.) → native Wayland

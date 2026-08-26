@@ -16,6 +16,9 @@ export HYPRCURSOR_SIZE=24
 export QT_QPA_PLATFORMTHEME=qt6ct
 export QT_STYLE_OVERRIDE=kvantum
 
+# LibreOffice: GTK3 widgets so it takes adw-gtk3-dark + the matte gtk.css (gtk4 backend is experimental)
+export SAL_USE_VCLPLUGIN=gtk3
+
 # Gaming: shared DXVK tuning for every Proton/Wine game (see dxvk package).
 # Steam inherits this at login; per-game DXVK_CONFIG overrides it on top.
 export DXVK_CONFIG_FILE="$HOME/.config/dxvk/dxvk.conf"
