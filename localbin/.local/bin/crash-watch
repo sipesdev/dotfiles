@@ -1,0 +1,88 @@
+#!/bin/bash
+# crash-watch -- announce this user's process crashes with a sticky toast whose
+# click launches an AI diagnosis (agent-crash) in ~/Projects/dotfiles.
+#
+# systemd-coredump journals every core dump under a fixed MESSAGE_ID with
+# structured COREDUMP_* fields; follow that stream rather than polling
+# coredumpctl. Run by the crash-watch.service user unit.
+
+set -uo pipefail
+
+# See systemd.journal-fields(7).
+readonly COREDUMP_MESSAGE_ID=fc2e22bc6ee647b6b90729ab34a250b1
+
+# Crash loops dump core repeatedly; announce each program at most once a window.
+readonly dedupe_seconds=${CRASH_DEDUPE_SECONDS:-60}
+
+# Extended regex of process names never worth announcing.
+readonly ignore_pattern=${CRASH_IGNORE:-}
+
+declare -A last_notified
+
+# Quickshell owns org.freedesktop.Notifications, so a quickshell crash takes
+# the notification server down with it -- and that is exactly the crash most
+# worth announcing. Poll until the restarted shell owns the name again. mako is
+# uninstalled, so this call cannot D-Bus-activate a competing daemon.
+notification_wait() {
+  local i
+  for ((i = 0; i < 30; i++)); do
+    busctl --user call org.freedesktop.Notifications /org/freedesktop/Notifications \
+      org.freedesktop.Notifications GetServerInformation >/dev/null 2>&1 && return 0
+    sleep 2
+  done
+  return 1
+}
+
+# One background subshell per crash: -A implies --wait, so notify-send blocks
+# until the toast is clicked (prints "default") or dismissed (prints nothing).
+# Critical urgency is exempt from Notifs.qml's 8s cap, so the toast holds until
+# acted on. Crash details ride as discrete argv words -- never re-parsed, so a
+# hostile process name cannot become a command. If quickshell restarts while a
+# toast is pending, the waiting notify-send exits actionless and that click is
+# lost; `agent-crash <pid>` by hand (see coredumpctl list) is the recovery.
+announce() {
+  local name=$1 pid=$2 exe=$3 signal=$4
+  (
+    notification_wait || exit 0
+    action=$(notify-send --urgency=critical --app-name=crash-watch \
+      -A default=Diagnose "Process crashed: $name" "Click to diagnose with AI")
+    [[ $action == default ]] &&
+      exec setsid "$HOME/.local/bin/agent-crash" "$pid" "$name" "$exe" "$signal"
+  ) &
+}
+
+# -n 0 so a service restart does not re-announce crashes already dealt with.
+journalctl -f -n 0 -o json "MESSAGE_ID=$COREDUMP_MESSAGE_ID" 2>/dev/null |
+  while IFS= read -r entry; do
+    IFS=$'\t' read -r uid comm pid exe signal < <(
+      jq -r '[(._UID // "-"),
+              (.COREDUMP_COMM // "-"),
+              (.COREDUMP_PID // "-"),
+              (.COREDUMP_EXE // "-"),
+              (.COREDUMP_SIGNAL_NAME // "-")] | @tsv' <<<"$entry" 2>/dev/null
+    )
+
+    [[ $pid =~ ^[0-9]+$ ]] || continue
+
+    # Only this user's crashes; a daemon dumping core is a sysadmin's problem.
+    [[ $uid =~ ^[0-9]+$ ]] || continue
+    ((uid == UID)) || continue
+
+    # comm is truncated to 15 characters, so prefer the executable's basename.
+    name=$comm
+    [[ $exe == /* ]] && name=${exe##*/}
+
+    [[ -n $ignore_pattern && $name =~ $ignore_pattern ]] && continue
+
+    # Never announce our own machinery, or it notifies about itself.
+    [[ $name == crash-watch* || $name == agent-* || $name == agent ]] && continue
+
+    now=$EPOCHSECONDS
+    (((now - ${last_notified[$name]:-0}) < dedupe_seconds)) && continue
+
+    # Delivery is async (the subshell may still be waiting on the notification
+    # server), so unlike Omarchy the dedupe window starts at launch, not at
+    # confirmed delivery. A crash loop during a shell outage self-dedupes anyway.
+    announce "$name" "$pid" "$exe" "$signal"
+    last_notified[$name]=$now
+  done

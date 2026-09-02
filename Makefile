@@ -27,3 +27,6 @@ dns:
 agents-setup:
 	ln -sfn $(HOME)/.agents/skills/dotfiles $(HOME)/.claude/skills/dotfiles
 	ln -sfn $(HOME)/.agents/skills/diagnose-crash $(HOME)/.claude/skills/diagnose-crash
+	systemctl --user daemon-reload
+	systemctl --user enable --now crash-watch.service
+	systemctl --user is-active crash-watch.service

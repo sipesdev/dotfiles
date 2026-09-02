@@ -16,10 +16,14 @@ Singleton {
     id: root
 
     // ── Policy ───────────────────────────────────────────────────────
-    // Every urgency clears within maxTimeout, Critical included. expireTimeout arrives
-    // as the raw D-Bus value in MILLISECONDS (verified: notify-send -t 3000 delivers
-    // 3000), where 0 means "never expire" and -1 means "server decides". The `> 0` test
-    // sends both to the cap, so an app can ask for less than 8s but never for more.
+    // Normal and Low urgencies clear within maxTimeout -- an app can ask for
+    // less than 8s but never for more. CRITICAL notifications never start a
+    // countdown: they hold until clicked, closed by the app, or pushed out by
+    // overflow. The only critical sender today is crash-watch, whose toast must
+    // outlive the cap for its click-to-diagnose to stay reachable. expireTimeout
+    // arrives as the raw D-Bus value in MILLISECONDS (verified: notify-send
+    // -t 3000 delivers 3000), where 0 means "never expire" and -1 means "server
+    // decides". The `> 0` test sends both to the cap.
     readonly property int maxTimeout: 8000
     readonly property int maxVisible: 5
 
@@ -83,6 +87,7 @@ Singleton {
             property string appIcon
             property string image
             property int    timeout              // ms, already capped
+            property bool   critical: false      // urgency Critical: no countdown (see Policy)
             property bool   hovered: false       // a card somewhere is under the pointer
             property bool   dismissing: false    // ask the cards to animate out
             property bool   reaping: false       // teardown already scheduled; do not double-remove
@@ -153,6 +158,7 @@ Singleton {
         rec.appName = n.appName;
         rec.appIcon = n.appIcon;
         rec.image   = n.image;
+        rec.critical = n.urgency === NotificationUrgency.Critical;
         rec.timeout = n.expireTimeout > 0 ? Math.min(n.expireTimeout, root.maxTimeout)
                                           : root.maxTimeout;
     }
@@ -179,7 +185,10 @@ Singleton {
         stack.values = [rec].concat(stack.values);
         // The countdown measures ON-SCREEN time, so it starts here rather than on arrival:
         // a record that waited in the queue gets its full life once the popout closes.
-        rec.life.running = true;
+        // A critical record's countdown never starts; it leaves via click, app
+        // close, or the overflow flagging below (the deliberate escape valve
+        // that keeps the stack from jamming full of stuck criticals).
+        if (!rec.critical) rec.life.running = true;
         // Overflow: flag EVERY card past the cap, not just the oldest one. A burst lands
         // several arrivals before the first has finished animating out, so flagging a
         // single card per arrival re-flags the same one and settles a card too tall.
