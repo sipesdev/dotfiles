@@ -154,6 +154,15 @@ class CodexLimits(unittest.TestCase):
         self.assertAlmostEqual(e["percent"], 0.125)
         self.assertEqual(e["resetsAt"], "")
 
+    def test_epoch_reset_becomes_iso(self):
+        # The live Anthropic probe returns resets_at as epoch seconds; codex's
+        # app-server is expected to match, and the drawer needs a parseable date.
+        e = codex.limit_entry({"usedPercent": 5, "windowDurationMins": 300,
+                               "resetsAt": 1757000000})
+        self.assertIsInstance(e["resetsAt"], str)
+        self.assertEqual(datetime.fromisoformat(e["resetsAt"]),
+                         datetime.fromtimestamp(1757000000, tz=timezone.utc))
+
     def test_rejects_junk(self):
         self.assertIsNone(codex.limit_entry({}))
         self.assertIsNone(codex.limit_entry(None))

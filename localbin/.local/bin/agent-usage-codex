@@ -247,6 +247,19 @@ def aggregate(files):
     }
 
 
+def normalize_reset_at(value):
+    """Reset stamp -> ISO UTC string. The app-server sends epoch seconds; a
+    string (or nothing) is passed through so the drawer always gets a date."""
+    if value is None:
+        return ""
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        try:
+            return datetime.fromtimestamp(value, tz=timezone.utc).isoformat()
+        except (OSError, OverflowError, ValueError):
+            return ""
+    return str(value)
+
+
 def limit_entry(rl):
     """One rateLimits window -> {label, percent, resetsAt}, or None."""
     if not isinstance(rl, dict) or rl.get("usedPercent") is None:
@@ -264,7 +277,8 @@ def limit_entry(rl):
         pct = max(0.0, min(1.0, float(rl["usedPercent"]) / 100.0))
     except (TypeError, ValueError):
         return None
-    return {"label": label, "percent": pct, "resetsAt": str(rl.get("resetsAt") or "")}
+    return {"label": label, "percent": pct,
+            "resetsAt": normalize_reset_at(rl.get("resetsAt"))}
 
 
 def rpc_request(proc, request_id, method, deadline, params=None):

@@ -8,7 +8,7 @@ stow:   ; $(STOW) $(PKGS)
 restow: ; $(STOW) --restow $(PKGS)   # prune orphaned symlinks after renames
 unstow: ; $(STOW) --delete $(PKGS)
 list:   ; @echo $(PKGS)
-test:   ; node --test tests/quickshell/*.test.js && python tests/agents/test_collectors.py   # pure JS + collector models
+test:   ; node --test tests/quickshell/*.test.js && PYTHONDONTWRITEBYTECODE=1 python tests/agents/test_collectors.py   # pure JS + collector models; no .pyc inside the stow package
 
 # ── System (root) config that stow cannot deliver ────────────────
 # Global DNS override for NetworkManager (Cloudflare). Not a stow package: needs root.
