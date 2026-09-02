@@ -1,0 +1,70 @@
+#!/bin/bash
+# agent -- launch the default coding agent, auto-approved.
+#
+#   agent [--inline] [--prompt "..."]
+#
+# The harness is the one word in ~/.config/agent/default when that file exists;
+# otherwise the first of claude/codex/gemini found on PATH. Each case arm
+# carries that harness's "don't stop to ask" flag and its prompt syntax.
+# Without --inline the agent opens in a floating alacritty (class agent-tui,
+# sized/centered by the float-agent-tui window rule).
+
+set -euo pipefail
+
+inline=0
+prompt=""
+while (($# > 0)); do
+  case "$1" in
+  --inline) inline=1 ;;
+  --prompt)
+    prompt=${2:?agent: --prompt needs a value}
+    shift
+    ;;
+  *)
+    echo "usage: agent [--inline] [--prompt \"...\"]" >&2
+    exit 1
+    ;;
+  esac
+  shift
+done
+
+default_file="${XDG_CONFIG_HOME:-$HOME/.config}/agent/default"
+harness=""
+if [[ -r $default_file ]]; then
+  read -r harness <"$default_file" || true
+fi
+if [[ -z $harness ]]; then
+  for candidate in claude codex gemini; do
+    command -v "$candidate" >/dev/null 2>&1 && { harness=$candidate; break; }
+  done
+fi
+[[ -n $harness ]] || { echo "agent: no coding agent installed (claude/codex/gemini)" >&2; exit 1; }
+
+case "$harness" in
+claude)
+  cmd=(claude --permission-mode auto)
+  [[ -n $prompt ]] && cmd+=(-- "$prompt")
+  ;;
+codex)
+  # UNVERIFIED until codex is installed: --approve-for-me per openai/codex PR 36373.
+  cmd=(codex --approve-for-me)
+  [[ -n $prompt ]] && cmd+=(-- "$prompt")
+  ;;
+gemini)
+  # UNVERIFIED until gemini is installed: --yolo auto-approves, -i seeds a prompt.
+  cmd=(gemini --yolo)
+  [[ -n $prompt ]] && cmd+=(-i "$prompt")
+  ;;
+*)
+  echo "agent: unknown harness '$harness' in $default_file" >&2
+  exit 1
+  ;;
+esac
+
+# Agents refuse to persist trust for $HOME itself; land somewhere they will.
+[[ $PWD == "$HOME" && -d $HOME/Projects ]] && cd "$HOME/Projects"
+
+if ((inline)); then
+  exec "${cmd[@]}"
+fi
+exec setsid uwsm-app -- alacritty --class agent-tui -e "${cmd[@]}"
