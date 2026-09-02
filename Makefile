@@ -25,6 +25,7 @@ dns:
 # symlink); ~/.claude itself is not stowed. Idempotent.
 .PHONY: agents-setup
 agents-setup:
+	mkdir -p $(HOME)/.claude/skills
 	ln -sfn $(HOME)/.agents/skills/dotfiles $(HOME)/.claude/skills/dotfiles
 	ln -sfn $(HOME)/.agents/skills/diagnose-crash $(HOME)/.claude/skills/diagnose-crash
 	systemctl --user daemon-reload

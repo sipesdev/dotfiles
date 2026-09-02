@@ -140,8 +140,9 @@ polls `~/.local/bin/network-probe` (1.5 s) only while open; the agents drawer as
 `Notifs.qml` is the notification daemon: it owns `org.freedesktop.Notifications`, caps Normal and Low
 notifications at 8s, and holds arrivals while a popout is open. **Critical urgency is exempt from the
 cap** — a critical card never starts its countdown and stays until clicked or dismissed (overflow past the
-5 visible cards is the escape valve that stops the stack jamming); `crash-watch` is the only critical
-sender on the box, and its toast is the click target. **Never leave that bus name unowned** — D-Bus then
+5 visible cards is the escape valve that stops the stack jamming). Two senders go critical: `crash-watch`,
+whose sticky toast is the click target, and `/usr/bin/uwsm-app`, which sends one when an app fails to launch
+(`agent` starts through it) — sticking is right for both. **Never leave that bus name unowned** — D-Bus then
 returns `ServiceUnknown` and some apps abort rather than degrade, so any config error that stops Quickshell
 loading also takes notifications down with it. Check with `busctl --user list | grep -i Notifications`.
 

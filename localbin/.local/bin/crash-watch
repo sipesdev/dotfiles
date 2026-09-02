@@ -54,8 +54,8 @@ announce() {
 # -n 0 so a service restart does not re-announce crashes already dealt with.
 journalctl -f -n 0 -o json "MESSAGE_ID=$COREDUMP_MESSAGE_ID" 2>/dev/null |
   while IFS= read -r entry; do
-    IFS=$'\t' read -r uid comm pid exe signal < <(
-      jq -r '[(._UID // "-"),
+    IFS=$'\t' read -r crash_uid comm pid exe signal < <(
+      jq -r '[(.COREDUMP_UID // "-"),
               (.COREDUMP_COMM // "-"),
               (.COREDUMP_PID // "-"),
               (.COREDUMP_EXE // "-"),
@@ -65,8 +65,11 @@ journalctl -f -n 0 -o json "MESSAGE_ID=$COREDUMP_MESSAGE_ID" 2>/dev/null |
     [[ $pid =~ ^[0-9]+$ ]] || continue
 
     # Only this user's crashes; a daemon dumping core is a sysadmin's problem.
-    [[ $uid =~ ^[0-9]+$ ]] || continue
-    ((uid == UID)) || continue
+    # COREDUMP_UID is the crashing process's owner. _UID would be the uid of the
+    # systemd-coredump handler that wrote the entry -- 979 (systemd-coredump) for
+    # a root crash, not 0 -- so matching on it compares against the wrong process.
+    [[ $crash_uid =~ ^[0-9]+$ ]] || continue
+    ((crash_uid == UID)) || continue
 
     # comm is truncated to 15 characters, so prefer the executable's basename.
     name=$comm

@@ -19,8 +19,11 @@ Singleton {
     // Normal and Low urgencies clear within maxTimeout -- an app can ask for
     // less than 8s but never for more. CRITICAL notifications never start a
     // countdown: they hold until clicked, closed by the app, or pushed out by
-    // overflow. The only critical sender today is crash-watch, whose toast must
-    // outlive the cap for its click-to-diagnose to stay reachable. expireTimeout
+    // overflow. Two senders go critical today: crash-watch, whose toast must
+    // outlive the cap for its click-to-diagnose to stay reachable, and uwsm-app,
+    // which reports an app that failed to launch (so anything started through it,
+    // including `agent`, can raise one). Sticking is right for both -- a crash
+    // and a failed launch are both worth finding when you come back. expireTimeout
     // arrives as the raw D-Bus value in MILLISECONDS (verified: notify-send
     // -t 3000 delivers 3000), where 0 means "never expire" and -1 means "server
     // decides". The `> 0` test sends both to the cap.
