@@ -1,0 +1,286 @@
+#!/usr/bin/python
+"""Usage collector for the Gemini CLI (agents drawer).
+
+Prints one display-ready JSON record to stdout, or NOTHING (exit 0) when the
+Gemini CLI is not on this machine, so agent-usage-update drops stale records
+and the bar pill self-hides.
+
+UNVERIFIED AT RUNTIME: gemini is not installed here. Session-file shapes follow
+gemini-cli's chatRecordingService.ts; the quota endpoint follows CodexBar's
+documentation of v1internal:retrieveUserQuota (sources in the plan). Both are
+undocumented and may drift; every parse degrades to "no data", never a crash.
+
+Local stats:  $GEMINI_DATA_DIR (default ~/.gemini)/tmp/*/chats/**/*.jsonl,
+              JSONL MessageRecords; {"$set":...}/{"$rewindTo":...} control
+              lines and non-"gemini" records are skipped. Retention is ~30
+              days upstream, so the tree stays small: no incremental cache.
+Limits:       POST cloudcode-pa.googleapis.com/v1internal:retrieveUserQuota
+              with the bearer token from oauth_creds.json. NO token refresh
+              (that needs the CLI's embedded OAuth client secret) -- an expired
+              token degrades to "Sign-in expired". The token is used in the
+              Authorization header ONLY -- never printed, logged, or recorded.
+"""
+
+import json
+import os
+import shutil
+import sys
+import time
+import urllib.error
+import urllib.request
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+SCHEMA_VERSION = 1
+PROBE_FLOOR_SECONDS = 15
+QUOTA_URL = "https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuota"
+
+
+def data_dir():
+    return Path(os.environ.get("GEMINI_DATA_DIR", str(Path.home() / ".gemini")))
+
+
+def cache_dir():
+    root = Path(os.environ.get("XDG_CACHE_HOME", str(Path.home() / ".cache")))
+    d = root / "agents" / "usage"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def read_json(path):
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return None
+
+
+def write_json(path, obj):
+    import tempfile
+    fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix="." + path.name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(obj, f)
+        os.replace(tmp, path)
+    except OSError:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+
+
+def local_day(ts):
+    """ISO timestamp (Z or offset) or epoch ms -> local YYYY-MM-DD, else None."""
+    try:
+        if isinstance(ts, bool) or ts is None:
+            return None
+        if isinstance(ts, (int, float)):
+            dt = datetime.fromtimestamp(ts / 1000, tz=timezone.utc)
+        else:
+            dt = datetime.fromisoformat(str(ts).replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone().strftime("%Y-%m-%d")
+    except (ValueError, TypeError, OSError, OverflowError):
+        return None
+
+
+def parse_message(obj):
+    """MessageRecord -> event dict, or None for control/user/tokenless lines.
+
+    tokens.output excludes thinking and tool tokens upstream, so fold thoughts
+    and tool into outputTokens; cached input maps to cacheReadInputTokens.
+    """
+    if not isinstance(obj, dict):
+        return None
+    if any(isinstance(k, str) and k.startswith("$") for k in obj):
+        return None
+    if obj.get("type") != "gemini":
+        return None
+    tokens = obj.get("tokens")
+    if not isinstance(tokens, dict):
+        return None
+
+    def n(k):
+        v = tokens.get(k)
+        return int(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else 0
+
+    return {
+        "id": str(obj.get("id") or ""),
+        "model": str(obj.get("model") or "gemini"),
+        "timestamp": obj.get("timestamp"),
+        "inputTokens": n("input"),
+        "outputTokens": n("output") + n("thoughts") + n("tool"),
+        "cacheReadInputTokens": n("cached"),
+        "cacheCreationInputTokens": 0,
+    }
+
+
+def scan(root):
+    seen = set()
+    model_usage = {}
+    day_tokens = {}
+    day_prompts = {}
+    total_prompts = 0
+    sessions = 0
+    today_sessions = 0
+    today = datetime.now().astimezone().strftime("%Y-%m-%d")
+    today_by_model = {}
+
+    tmp = Path(root) / "tmp"
+    chats = sorted(tmp.glob("*/chats/**/*.jsonl")) if tmp.is_dir() else []
+    for path in chats:
+        counted = False
+        today_here = False
+        try:
+            with open(path, encoding="utf-8", errors="replace") as f:
+                for line in f:
+                    try:
+                        obj = json.loads(line)
+                    except ValueError:
+                        continue
+                    ev = parse_message(obj)
+                    if not ev:
+                        continue
+                    day = local_day(ev["timestamp"])
+                    if not day:
+                        continue
+                    key = (str(path), ev["id"])
+                    if ev["id"] and key in seen:
+                        continue
+                    seen.add(key)
+                    counted = True
+                    total_prompts += 1
+                    mu = model_usage.setdefault(ev["model"], {
+                        "inputTokens": 0, "outputTokens": 0,
+                        "cacheReadInputTokens": 0, "cacheCreationInputTokens": 0})
+                    mu["inputTokens"] += ev["inputTokens"]
+                    mu["outputTokens"] += ev["outputTokens"]
+                    mu["cacheReadInputTokens"] += ev["cacheReadInputTokens"]
+                    tokens = (ev["inputTokens"] + ev["outputTokens"]
+                              + ev["cacheReadInputTokens"])
+                    day_tokens[day] = day_tokens.get(day, 0) + tokens
+                    day_prompts[day] = day_prompts.get(day, 0) + 1
+                    if day == today:
+                        today_here = True
+                        today_by_model[ev["model"]] = \
+                            today_by_model.get(ev["model"], 0) + tokens
+        except OSError:
+            continue
+        if counted:
+            sessions += 1
+        if today_here:
+            today_sessions += 1
+
+    recent = []
+    base = datetime.now().astimezone()
+    for back in range(6, -1, -1):
+        d = (base - timedelta(days=back)).strftime("%Y-%m-%d")
+        recent.append({"date": d, "messageCount": day_tokens.get(d, 0)})
+
+    active_dates = sorted(day_tokens)
+    return {
+        "modelUsage": model_usage,
+        "recentDays": recent,
+        "todayTotalTokens": day_tokens.get(today, 0),
+        "todayTokensByModel": today_by_model,
+        "todayPrompts": day_prompts.get(today, 0),
+        "todaySessions": today_sessions,
+        "totalPrompts": total_prompts,
+        "totalSessions": sessions,
+        "activeDates": active_dates,
+        "activeDays": len(active_dates),
+    }
+
+
+def parse_quotas(payload):
+    """Per-model quota entries -> limit rows. Shape per CodexBar: a list of
+    {modelId, remainingFraction, resetTime}, possibly wrapped in a dict."""
+    entries = None
+    if isinstance(payload, list):
+        entries = payload
+    elif isinstance(payload, dict):
+        for key in ("quotas", "userQuotas", "modelQuotas", "quota"):
+            if isinstance(payload.get(key), list):
+                entries = payload[key]
+                break
+    out = []
+    for e in entries or []:
+        if not isinstance(e, dict):
+            continue
+        frac = e.get("remainingFraction")
+        if not isinstance(frac, (int, float)) or isinstance(frac, bool):
+            continue
+        out.append({
+            "label": str(e.get("modelId") or "Quota"),
+            "percent": max(0.0, min(1.0, 1.0 - float(frac))),
+            "resetsAt": str(e.get("resetTime") or ""),
+        })
+    return out
+
+
+def collect_limits(root, force):
+    """-> (limits, status_text, help_text, retry_advised)"""
+    creds = read_json(Path(root) / "oauth_creds.json") or {}
+    token = creds.get("access_token")
+    if not token:
+        return [], "Waiting for auth", "Sign in with `gemini` to see quotas.", False
+    expiry = creds.get("expiry_date")
+    if isinstance(expiry, (int, float)) and expiry / 1000 < time.time():
+        return [], "Sign-in expired", "Re-authenticate in the Gemini CLI (/auth).", False
+
+    cpath = cache_dir() / "gemini-limits.json"
+    cached = read_json(cpath) or {}
+    now = time.time()
+    if not force and isinstance(cached.get("probedAt"), (int, float)) \
+            and now - cached["probedAt"] < PROBE_FLOOR_SECONDS:
+        return cached.get("limits") or [], "", "", False
+
+    try:
+        req = urllib.request.Request(
+            QUOTA_URL, data=b"{}", method="POST",
+            headers={"Authorization": "Bearer " + token,
+                     "Content-Type": "application/json",
+                     "User-Agent": "agent-usage-gemini"})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            payload = json.load(resp)
+        limits = parse_quotas(payload)
+        write_json(cpath, {"probedAt": now, "limits": limits})
+        return limits, "", "", False
+    except urllib.error.HTTPError as err:
+        if err.code in (401, 403):
+            return [], "Sign-in expired", "Re-authenticate in the Gemini CLI (/auth).", False
+        return [], "", "Quota probe failed (HTTP %d)." % err.code, True
+    except (urllib.error.URLError, OSError, ValueError):
+        return [], "", "Quota probe failed; retrying.", True
+
+
+def main():
+    force = "--force" in sys.argv[1:]
+    root = data_dir()
+    if not root.is_dir() and shutil.which("gemini") is None:
+        return 0
+
+    stats = scan(root)
+    limits, status, help_text, retry = collect_limits(root, force)
+
+    record = {
+        "schemaVersion": SCHEMA_VERSION,
+        "id": "gemini",
+        "name": "Gemini CLI",
+        "updatedAt": datetime.now(timezone.utc).isoformat(),
+        "ready": bool(stats["totalPrompts"] or limits),
+        "tierLabel": "",
+        "usageStatusText": status,
+        "authHelpText": help_text,
+        "retryAdvised": retry,
+        "limits": limits,
+    }
+    record.update(stats)
+    json.dump(record, sys.stdout)
+    print()
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

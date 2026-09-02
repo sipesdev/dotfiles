@@ -1,0 +1,370 @@
+#!/usr/bin/python
+"""Usage collector for Codex (agents drawer).
+
+Prints one display-ready JSON record to stdout, or NOTHING (exit 0) when the
+Codex CLI is not on this machine, so agent-usage-update drops stale records and
+the bar pill self-hides.
+
+UNVERIFIED AT RUNTIME: codex is not installed here, so no code path below the
+absent-CLI gate has ever run on this box. The session-file shapes and the
+app-server JSON-RPC handshake are ported from Omarchy's
+bin/omarchy-agent-usage-codex; both are undocumented and may drift, so every
+parse degrades to "no data", never a crash.
+
+Local stats:  $CODEX_HOME (default ~/.codex)/{sessions,archived_sessions}
+              /**/*.jsonl, last 30 days by mtime. A turn_context event's
+              payload.model names the model for the events after it; a
+              token_count event contributes payload.info.last_token_usage
+              (the sibling total_token_usage is cumulative -- summing it grows
+              usage quadratically). Incremental: a per-file event cache keyed
+              on (mtime, size) so only changed transcripts are reparsed.
+Limits:       `codex app-server` over stdio JSON-RPC (account/read,
+              account/rateLimits/read) -- the same calls the Codex TUI makes.
+              No credential is read or passed here: the child process reads its
+              own auth, and nothing from it lands in the record but the plan
+              name and the rate-limit windows.
+"""
+
+import json
+import os
+import select
+import shutil
+import subprocess
+import sys
+import tempfile
+import time
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+SCHEMA_VERSION = 1
+SCAN_WINDOW_DAYS = 30
+RPC_DEADLINE_SECONDS = 10
+AUTH_HELP = "Run `codex login` to see rate limits."
+
+
+def codex_home():
+    return Path(os.environ.get("CODEX_HOME", str(Path.home() / ".codex")))
+
+
+def cache_dir():
+    root = Path(os.environ.get("XDG_CACHE_HOME", str(Path.home() / ".cache")))
+    d = root / "agents" / "usage"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def read_json(path):
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return None
+
+
+def write_json(path, obj):
+    fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix="." + path.name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(obj, f)
+        os.replace(tmp, path)
+    except OSError:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+
+
+def local_day(ts):
+    """ISO timestamp (Z or offset) or epoch ms -> local YYYY-MM-DD, else None."""
+    try:
+        if isinstance(ts, bool) or ts is None:
+            return None
+        if isinstance(ts, (int, float)):
+            dt = datetime.fromtimestamp(ts / 1000, tz=timezone.utc)
+        else:
+            dt = datetime.fromisoformat(str(ts).replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone().strftime("%Y-%m-%d")
+    except (ValueError, TypeError, OSError, OverflowError):
+        return None
+
+
+def number(value):
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return int(value)
+    return 0
+
+
+def file_events(path):
+    """Parse one rollout file into [[id, model, day, in, out, cacheRead, cacheWrite], ...].
+
+    Codex events carry no message id, so the id is synthesized per line; each
+    line is unique, which makes the shared dedupe in aggregate() a no-op here.
+    """
+    events = []
+    model = "codex"
+    try:
+        with open(path, encoding="utf-8", errors="replace") as f:
+            for lineno, line in enumerate(f):
+                try:
+                    obj = json.loads(line)
+                except ValueError:
+                    continue
+                if not isinstance(obj, dict):
+                    continue
+                payload = obj.get("payload")
+                if not isinstance(payload, dict):
+                    payload = obj
+                if obj.get("type") == "response_item" and isinstance(payload.get("payload"), dict):
+                    payload = payload["payload"]
+                if obj.get("type") == "turn_context":
+                    model = str(payload.get("model") or payload.get("model_slug") or model)
+                    continue
+                if payload.get("type") != "token_count":
+                    continue
+                info = payload.get("info")
+                if not isinstance(info, dict):
+                    continue
+                usage = info.get("last_token_usage")
+                if not isinstance(usage, dict):
+                    continue
+                cr = number(usage.get("cached_input_tokens"))
+                cw = number(usage.get("cache_write_input_tokens"))
+                # Cached tokens are already inside input_tokens; keep the cache
+                # split without counting either category twice.
+                i = max(0, number(usage.get("input_tokens")) - cr - cw)
+                o = number(usage.get("output_tokens"))
+                if not (i or o or cr or cw):
+                    continue
+                day = local_day(obj.get("timestamp"))
+                if not day:
+                    continue
+                events.append(["%s:%d" % (path, lineno), model, day, i, o, cr, cw])
+    except OSError:
+        pass
+    return events
+
+
+def scan(root, cache_path=None, force=False):
+    """Aggregate the recent rollout files, incrementally via a per-file cache."""
+    cached_files = {}
+    if cache_path and not force:
+        cache = read_json(cache_path)
+        if isinstance(cache, dict) and cache.get("schemaVersion") == SCHEMA_VERSION \
+                and isinstance(cache.get("files"), dict):
+            cached_files = cache["files"]
+
+    cutoff = time.time() - SCAN_WINDOW_DAYS * 24 * 60 * 60
+    files = {}
+    for sub in ("sessions", "archived_sessions"):
+        d = Path(root) / sub
+        if not d.is_dir():
+            continue
+        for path in sorted(d.rglob("*.jsonl")):
+            try:
+                st = path.stat()
+            except OSError:
+                continue
+            if st.st_mtime < cutoff:
+                continue
+            key = str(path)
+            prev = cached_files.get(key)
+            if isinstance(prev, dict) and prev.get("mtime") == st.st_mtime \
+                    and prev.get("size") == st.st_size:
+                files[key] = prev
+            else:
+                files[key] = {"mtime": st.st_mtime, "size": st.st_size,
+                              "events": file_events(path)}
+
+    if cache_path:
+        write_json(Path(cache_path), {"schemaVersion": SCHEMA_VERSION, "files": files})
+
+    return aggregate(files)
+
+
+def aggregate(files):
+    seen = set()
+    model_usage = {}
+    day_tokens = {}
+    day_prompts = {}
+    total_prompts = 0
+    sessions = 0
+    today_sessions = 0
+    today = datetime.now().astimezone().strftime("%Y-%m-%d")
+    today_by_model = {}
+
+    for info in files.values():
+        events = info.get("events") or []
+        counted = False
+        today_here = False
+        for ev in events:
+            try:
+                mid, model, day, i, o, cr, cw = ev
+            except (ValueError, TypeError):
+                continue
+            if mid in seen:
+                continue
+            seen.add(mid)
+            counted = True
+            total_prompts += 1
+            mu = model_usage.setdefault(model, {
+                "inputTokens": 0, "outputTokens": 0,
+                "cacheReadInputTokens": 0, "cacheCreationInputTokens": 0})
+            mu["inputTokens"] += i
+            mu["outputTokens"] += o
+            mu["cacheReadInputTokens"] += cr
+            mu["cacheCreationInputTokens"] += cw
+            tokens = i + o + cr + cw
+            day_tokens[day] = day_tokens.get(day, 0) + tokens
+            day_prompts[day] = day_prompts.get(day, 0) + 1
+            if day == today:
+                today_here = True
+                today_by_model[model] = today_by_model.get(model, 0) + tokens
+        if counted:
+            sessions += 1
+        if today_here:
+            today_sessions += 1
+
+    recent = []
+    base = datetime.now().astimezone()
+    for back in range(6, -1, -1):
+        d = (base - timedelta(days=back)).strftime("%Y-%m-%d")
+        recent.append({"date": d, "messageCount": day_tokens.get(d, 0)})
+
+    active_dates = sorted(day_tokens)
+    return {
+        "modelUsage": model_usage,
+        "recentDays": recent,
+        "todayTotalTokens": day_tokens.get(today, 0),
+        "todayTokensByModel": today_by_model,
+        "todayPrompts": day_prompts.get(today, 0),
+        "todaySessions": today_sessions,
+        "totalPrompts": total_prompts,
+        "totalSessions": sessions,
+        "activeDates": active_dates,
+        "activeDays": len(active_dates),
+    }
+
+
+def limit_entry(rl):
+    """One rateLimits window -> {label, percent, resetsAt}, or None."""
+    if not isinstance(rl, dict) or rl.get("usedPercent") is None:
+        return None
+    mins = rl.get("windowDurationMins") or 0
+    if mins >= 10080:
+        label = "Weekly (7-day)"
+    elif 0 < mins <= 360:
+        label = "Session (5h)"
+    elif mins > 0:
+        label = "%dh window" % (mins // 60)
+    else:
+        label = "Limit"
+    try:
+        pct = max(0.0, min(1.0, float(rl["usedPercent"]) / 100.0))
+    except (TypeError, ValueError):
+        return None
+    return {"label": label, "percent": pct, "resetsAt": str(rl.get("resetsAt") or "")}
+
+
+def rpc_request(proc, request_id, method, deadline, params=None):
+    """Send one JSON-RPC request over stdio, return the matching response."""
+    proc.stdin.write(json.dumps({"id": request_id, "method": method,
+                                 "params": params or {}}) + "\n")
+    proc.stdin.flush()
+    while time.time() < deadline:
+        ready, _, _ = select.select([proc.stdout], [], [], 0.25)
+        if not ready:
+            continue
+        line = proc.stdout.readline()
+        if not line:
+            break
+        try:
+            message = json.loads(line)
+        except ValueError:
+            continue
+        if message.get("id") == request_id:
+            return message
+    raise TimeoutError(method)
+
+
+def probe_limits():
+    """-> (rateLimits dict, account dict) from a short-lived `codex app-server`."""
+    proc = subprocess.Popen(
+        [shutil.which("codex"), "-s", "read-only", "-a", "on-request", "app-server"],
+        stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+        text=True)
+    deadline = time.time() + RPC_DEADLINE_SECONDS
+    try:
+        rpc_request(proc, 1, "initialize", deadline,
+                    {"clientInfo": {"name": "agent-usage-codex", "version": "1"}})
+        proc.stdin.write(json.dumps({"method": "initialized", "params": {}}) + "\n")
+        proc.stdin.flush()
+        account_msg = rpc_request(proc, 2, "account/read", deadline)
+        limits_msg = rpc_request(proc, 3, "account/rateLimits/read", deadline)
+    finally:
+        try:
+            proc.terminate()
+            proc.wait(timeout=1)
+        except (OSError, subprocess.TimeoutExpired):
+            proc.kill()
+    account = (account_msg.get("result") or {}).get("account") or {}
+    limits = (limits_msg.get("result") or {}).get("rateLimits") or {}
+    return (limits if isinstance(limits, dict) else {},
+            account if isinstance(account, dict) else {})
+
+
+def collect_limits():
+    """-> (limits, tier_label, status_text, help_text, retry_advised)"""
+    if shutil.which("codex") is None:
+        return [], "", "Codex unavailable", "codex is not in PATH.", False
+    try:
+        rate_limits, account = probe_limits()
+    except (OSError, ValueError, TimeoutError, subprocess.SubprocessError):
+        return [], "", "", "Limits probe failed; retrying.", True
+
+    plan = rate_limits.get("planType") or account.get("planType") or account.get("type") or ""
+    tier = str(plan).capitalize() if plan else ""
+    limits = []
+    for window in (rate_limits.get("primary"), rate_limits.get("secondary")):
+        entry = limit_entry(window)
+        if entry:
+            limits.append(entry)
+    if not limits and not account:
+        return [], tier, "Waiting for auth", AUTH_HELP, False
+    return limits, tier, "", "", False
+
+
+def main():
+    args = sys.argv[1:]
+    force = "--force" in args
+    # --limits-only is accepted for CLI parity; the incremental scan is cheap
+    # enough that local stats refresh on every run anyway (divergence from
+    # Omarchy's separate reuse window, deliberate).
+    root = codex_home()
+    if not root.is_dir() and shutil.which("codex") is None:
+        return 0
+
+    stats = scan(root, cache_path=cache_dir() / "codex-scan.json", force=force)
+    limits, tier, status, help_text, retry = collect_limits()
+
+    record = {
+        "schemaVersion": SCHEMA_VERSION,
+        "id": "codex",
+        "name": "Codex",
+        "updatedAt": datetime.now(timezone.utc).isoformat(),
+        "ready": bool(stats["totalPrompts"] or limits),
+        "tierLabel": tier,
+        "usageStatusText": status,
+        "authHelpText": help_text,
+        "retryAdvised": retry,
+        "limits": limits,
+    }
+    record.update(stats)
+    json.dump(record, sys.stdout)
+    print()
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

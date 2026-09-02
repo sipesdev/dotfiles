@@ -1,0 +1,76 @@
+#!/bin/bash
+# agent-usage-update -- regenerate the coding-agent usage records.
+#
+#   agent-usage-update [--force] [--limits-only] [--except <agent>] [agent...]
+#
+# Runs every ~/.local/bin/agent-usage-<agent> collector in parallel. A collector
+# prints one display-ready JSON record (written atomically to
+# ~/.local/state/agents/usage/<agent>.json), or NOTHING when its CLI is not on
+# this machine -- then any stale record is removed so the bar pill self-hides.
+# Adding an agent is adding a collector; the drawer picks up any record here.
+
+set -uo pipefail
+
+USAGE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/agents/usage"
+mkdir -p "$USAGE_DIR"
+
+flags=()
+only=()
+declare -A excluded
+
+while (($# > 0)); do
+  case "$1" in
+  --force | --limits-only) flags+=("$1") ;;
+  --except)
+    excluded[${2:?--except needs an agent id}]=1
+    shift
+    ;;
+  *) only+=("$1") ;;
+  esac
+  shift
+done
+
+wanted() {
+  local agent=$1 candidate
+  [[ -n ${excluded[$agent]:-} ]] && return 1
+  ((${#only[@]} == 0)) && return 0
+  for candidate in "${only[@]}"; do
+    [[ $candidate == "$agent" ]] && return 0
+  done
+  return 1
+}
+
+collect() {
+  local collector=$1 agent=$2 record tmp
+  if ! record=$("$collector" "${flags[@]}"); then
+    echo "agent-usage-update: $agent collector failed" >&2
+    return 1
+  fi
+  if [[ -z $record ]]; then
+    rm -f "$USAGE_DIR/$agent.json" # CLI absent: drop any stale record
+    return 0
+  fi
+  if ! jq -e . >/dev/null 2>&1 <<<"$record"; then
+    echo "agent-usage-update: $agent collector printed invalid JSON" >&2
+    return 1
+  fi
+  tmp=$(mktemp "$USAGE_DIR/.$agent.XXXXXX")
+  printf '%s\n' "$record" >"$tmp"
+  mv "$tmp" "$USAGE_DIR/$agent.json" # same-dir mv = atomic replace
+}
+
+pids=()
+for collector in "$HOME/.local/bin"/agent-usage-*; do
+  [[ -x $collector ]] || continue
+  agent=${collector##*/agent-usage-}
+  [[ $agent == update ]] && continue
+  wanted "$agent" || continue
+  collect "$collector" "$agent" &
+  pids+=($!)
+done
+
+status=0
+for pid in "${pids[@]}"; do
+  wait "$pid" || status=1
+done
+exit $status
