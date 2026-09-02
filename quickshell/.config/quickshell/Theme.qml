@@ -77,6 +77,7 @@ Singleton {
     readonly property string iBalanced:       String.fromCodePoint(0xF029A)  // md-gauge (balanced)
     readonly property string iSpeedometer:    String.fromCodePoint(0xF04C5)  // md-speedometer (performance)
     readonly property string iBrightnessAuto: String.fromCodePoint(0xF00E1)  // md-brightness-auto
+    readonly property string iRobot:          String.fromCodePoint(0xF06A9)  // md-robot (agents)
     function audioGlyph(kind) {        // kinds from AudioModel.sinkKind / sourceKind
         switch (kind) {
         case "headphones": return iHeadphones;
