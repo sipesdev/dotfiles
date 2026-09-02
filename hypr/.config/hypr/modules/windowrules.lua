@@ -36,6 +36,17 @@ hl.window_rule({
     center = true,
 })
 
+-- Float + center the agent terminal (spawned by ~/.local/bin/agent and the
+-- crash toast). Expression sizes resolve once, at map time -- fine for a
+-- transient session window. Fallback if expressions misparse: size = { 1500, 950 }.
+hl.window_rule({
+    name   = "float-agent-tui",
+    match  = { class = "^agent-tui$" },
+    float  = true,
+    center = true,
+    size   = { "(monitor_w*0.6)", "(monitor_h*0.6)" },
+})
+
 -- No animation for the Quickshell bar/popouts — prevents the resize "bounce"
 -- when the status center grows (e.g. expanding the Wi-Fi list).
 hl.layer_rule({

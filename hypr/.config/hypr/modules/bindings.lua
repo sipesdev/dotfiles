@@ -17,6 +17,7 @@ local launcher = "walker"
 hl.bind(mod .. " + SHIFT + T", hl.dsp.exec_cmd(terminal), { description = "Terminal" })
 hl.bind(mod .. " + SHIFT + F", hl.dsp.exec_cmd(files),    { description = "Files" })
 hl.bind(mod .. " + SHIFT + B", hl.dsp.exec_cmd(browser),  { description = "Browser" })
+hl.bind(mod .. " + SHIFT + A", hl.dsp.exec_cmd(home .. "/.local/bin/agent"), { description = "Agent (floating)" })
 
 -- ── Launcher ──────────────────────────────────────────────────────────
 hl.bind(mod .. " + SPACE", hl.dsp.exec_cmd(launcher), { description = "App launcher" })
@@ -49,6 +50,9 @@ end
 
 -- Scratchpad (special workspace "magic")
 hl.bind(mod .. " + S", hl.dsp.workspace.toggle_special("magic"), { description = "Toggle scratchpad" })
+
+-- Quake-style agent console (special workspace "console"; sized/seeded by modules/qconsole.lua)
+hl.bind(mod .. " + grave", hl.dsp.workspace.toggle_special("console"), { description = "Agent console" })
 
 -- Cycle workspaces with the mouse wheel
 hl.bind(mod .. " + mouse_down", hl.dsp.focus({ workspace = "e+1" }))
