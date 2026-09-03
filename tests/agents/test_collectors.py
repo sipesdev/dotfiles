@@ -140,6 +140,62 @@ class Scan(unittest.TestCase):
             self.assertEqual(s3["modelUsage"]["claude-opus-4-8"]["inputTokens"], 10)
 
 
+class ClaudeLimits(unittest.TestCase):
+    # The shape the live endpoint returns today: a limits[] array of percent
+    # entries (0-100). Probed 2026-09-02; the buckets below are the older shape.
+    LIVE = {
+        "limits": [
+            {"kind": "session", "group": "session", "percent": 21,
+             "resets_at": "2026-09-03T02:20:00.000000+00:00",
+             "severity": "info", "is_active": True, "scope": None},
+            {"kind": "weekly_all", "group": "weekly", "percent": 21,
+             "resets_at": "2026-09-08T14:00:00.000000+00:00",
+             "severity": "info", "is_active": True, "scope": None},
+            {"kind": "weekly_scoped", "group": "weekly", "percent": 32,
+             "resets_at": "2026-09-08T14:00:00.000000+00:00",
+             "severity": "info", "is_active": True,
+             "scope": {"model": {"id": None, "display_name": "Fable"}, "surface": None}},
+        ]
+    }
+
+    def test_live_percent_entries(self):
+        rows = claude.parse_limits(self.LIVE)
+        self.assertEqual([r["label"] for r in rows],
+                         ["Session (5h)", "Weekly (7-day)", "Weekly (Fable)"])
+        self.assertAlmostEqual(rows[0]["percent"], 0.21)
+        self.assertAlmostEqual(rows[1]["percent"], 0.21)
+        self.assertAlmostEqual(rows[2]["percent"], 0.32)
+        self.assertEqual(rows[0]["resetsAt"], "2026-09-03T02:20:00.000000+00:00")
+        self.assertEqual(rows[2]["resetsAt"], "2026-09-08T14:00:00.000000+00:00")
+
+    def test_scoped_without_model_name_and_unknown_kind(self):
+        rows = claude.parse_limits({"limits": [
+            {"kind": "weekly_scoped", "percent": 5, "scope": None},
+            {"kind": "monthly_extra", "percent": 10},
+            {"kind": "session", "percent": "n/a"},          # not numeric: skipped
+        ]})
+        self.assertEqual([r["label"] for r in rows], ["Weekly (model)", "Monthly Extra"])
+
+    def test_percent_entries_supersede_buckets(self):
+        payload = dict(self.LIVE)
+        payload["five_hour"] = {"utilization": 0.9, "resets_at": "2026-09-03T02:20:00Z"}
+        self.assertEqual(len(claude.parse_limits(payload)), 3)
+
+    def test_bucket_fallback(self):
+        rows = claude.parse_limits({
+            "five_hour": {"utilization": 0.4, "resets_at": "2026-09-03T02:20:00Z"},
+            "seven_day": {"utilization": 0.6, "resets_at": "2026-09-08T14:00:00Z"},
+            "limits": [{"kind": "session"}],               # no usable percent
+        })
+        self.assertEqual([r["label"] for r in rows], ["Session (5h)", "Weekly (7-day)"])
+        self.assertAlmostEqual(rows[0]["percent"], 0.4)
+        self.assertAlmostEqual(rows[1]["percent"], 0.6)
+
+    def test_rejects_junk(self):
+        self.assertEqual(claude.parse_limits(None), [])
+        self.assertEqual(claude.parse_limits({}), [])
+
+
 class CodexLimits(unittest.TestCase):
     def test_weekly_window(self):
         e = codex.limit_entry({"usedPercent": 50, "windowDurationMins": 10080,

@@ -55,8 +55,9 @@ hdl() {
   # Run ai in the right pane
   herdr pane run "$ai_pane" "$ai" >/dev/null
 
-  # Run nvim in the left pane
-  herdr pane run "$editor_pane" "${EDITOR:-nvim} ." >/dev/null
+  # Run nvim in the left pane; fall back to a shell when the editor exits, so
+  # quitting it does not collapse the pane (pane run shell-parses the string)
+  herdr pane run "$editor_pane" "${EDITOR:-nvim} .; exec ${SHELL:-zsh}" >/dev/null
 }
 
 # Create a Herdr Dev Square layout with editor, diff watch, terminal, and opencode
@@ -77,7 +78,8 @@ hds() {
   diff_pane=$(_herdr_split "$editor_pane" right 0.5 "$current_dir")
   opencode_pane=$(_herdr_split "$terminal_pane" right 0.5 "$current_dir")
 
-  herdr pane run "$editor_pane" "nvim ." >/dev/null
+  # The editor pane falls back to a shell when the editor exits, not collapse
+  herdr pane run "$editor_pane" "nvim .; exec ${SHELL:-zsh}" >/dev/null
   herdr pane run "$diff_pane" "hunk diff --watch" >/dev/null
   herdr pane run "$opencode_pane" "opencode" >/dev/null
 }

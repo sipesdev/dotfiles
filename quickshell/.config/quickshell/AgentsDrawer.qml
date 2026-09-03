@@ -26,13 +26,21 @@ BarDrawer {
 
     onShownChanged: if (shown) Sys.refreshAgentLimits()
 
-    DrawerHero {
-        glyph: Theme.iRobot
-        glyphColor: AgentModel.anyLimitHot([agents.provider]) ? Theme.accent : Theme.text
-        title: agents.provider ? (agents.provider.name || agents.provider.id) : "Agents"
-        status: agents.provider
-            ? AgentModel.heroStatus(agents.provider) + " - " + AgentModel.todayLine(agents.provider)
-            : ""
+    RowLayout {
+        Layout.fillWidth: true
+        spacing: Theme.gap
+        DrawerHero {
+            glyph: Theme.iRobot
+            glyphColor: AgentModel.anyLimitHot([agents.provider]) ? Theme.accent : Theme.text
+            title: agents.provider ? (agents.provider.name || agents.provider.id) : "Agents"
+            status: agents.provider ? AgentModel.heroStatus(agents.provider) : ""
+        }
+        // Force a full refresh (Sys no-ops while an update is already running).
+        BarIcon {
+            glyph: Theme.iRefresh
+            glyphColor: Sys.agentUsageBusy ? Theme.dim : Theme.text
+            onClicked: Sys.forceAgentRefresh()
+        }
     }
 
     RowLayout {
@@ -95,7 +103,11 @@ BarDrawer {
         }
     }
 
-    SectionHeader { Layout.fillWidth: true; text: "TOKENS - 7 DAYS" }
+    SectionHeader {
+        Layout.fillWidth: true
+        text: "TOKENS - 7 DAYS"
+        detail: agents.provider ? AgentModel.promptsToday(agents.provider) : ""
+    }
     Repeater {
         model: agents.provider ? AgentModel.weekRows(agents.provider, "") : []
         RowLayout {

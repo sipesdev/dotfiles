@@ -290,16 +290,57 @@ def probe_limits(token):
         return json.load(resp)
 
 
+def is_number(v):
+    return isinstance(v, (int, float)) and not isinstance(v, bool)
+
+
+def limit_label(entry):
+    """Row label for one limits[] entry, from its kind (and scoped model name)."""
+    kind = str(entry.get("kind") or "")
+    if kind == "session":
+        return "Session (5h)"
+    if kind == "weekly_all":
+        return "Weekly (7-day)"
+    if kind == "weekly_scoped":
+        scope = entry.get("scope")
+        model = scope.get("model") if isinstance(scope, dict) else None
+        name = model.get("display_name") if isinstance(model, dict) else None
+        return "Weekly (%s)" % name if name else "Weekly (model)"
+    return kind.replace("_", " ").title()
+
+
+def percent_limits(entries):
+    """[{label, percent, resetsAt}] from the live limits[] array, in payload order.
+
+    Entries carry kind/percent/resets_at/scope; percent arrives 0-100 here but
+    goes through the same >1 auto-detect as the buckets. Entries without a
+    numeric percent are skipped, so an unusable array returns [] and the caller
+    falls back to the bucket shape.
+    """
+    if not isinstance(entries, list):
+        return []
+    usable = [e for e in entries if isinstance(e, dict) and is_number(e.get("percent"))]
+    percent_scale = any(e["percent"] > 1 for e in usable)
+    return [{"label": limit_label(e),
+             "percent": normalize_utilization(e["percent"], percent_scale),
+             "resetsAt": normalize_reset_at(e.get("resets_at"))}
+            for e in usable]
+
+
 def parse_limits(payload):
     """[{label, percent, resetsAt}] from the undocumented /api/oauth/usage shape.
 
-    Known buckets: five_hour, seven_day(_oauth_apps) with utilization+resets_at,
-    plus an optional scoped limits[] array. Utilization arrives as a fraction on
-    some plans and a 0-100 percent on others -- auto-detect (any value > 1 means
-    the payload is percent-scaled).
+    Two shapes, both live somewhere: the current one is a limits[] array of
+    percent entries (session / weekly_all / weekly_scoped), which wins outright
+    when present. The older one is top-level five_hour / seven_day(_oauth_apps)
+    buckets with utilization+resets_at, kept as the fallback -- the endpoint is
+    undocumented and has already drifted once.
     """
     if not isinstance(payload, dict):
         return []
+    rows = percent_limits(payload.get("limits"))
+    if rows:
+        return rows
     buckets = []
     for key, label in (("five_hour", "Session (5h)"),
                        ("seven_day_oauth_apps", "Weekly (7-day)"),
@@ -313,6 +354,8 @@ def parse_limits(payload):
             if isinstance(b, dict) and b.get("utilization") is not None:
                 label = scoped_window(b.get("type") or b.get("name") or b.get("key"))
                 buckets.append((label, b))
+    # Utilization is a fraction on some plans and a 0-100 percent on others:
+    # any value > 1 means the whole payload is percent-scaled.
     utils = [b.get("utilization") for _, b in buckets]
     percent_scale = any(isinstance(u, (int, float)) and u > 1 for u in utils)
     out = []

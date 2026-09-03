@@ -134,7 +134,8 @@ that can be pure lives in `NetModel.js` / `AudioModel.js` / `PowerModel.js` / `B
 refresh) and is tested by `make test` — node over `tests/quickshell/`, python over `tests/agents/` (the
 collectors' pure functions); both trees sit deliberately outside every stow package. The network drawer
 polls `~/.local/bin/network-probe` (1.5 s) only while open; the agents drawer asks Sys for a
-`--limits-only` refresh when it opens.
+`--limits-only` refresh when it opens and a `--force` one from its header refresh button (dimmed, and a
+no-op, while an update is already running).
 
 ### Notifications (`Notifs.qml`) — Quickshell owns the bus, not mako
 `Notifs.qml` is the notification daemon: it owns `org.freedesktop.Notifications`, caps Normal and Low
@@ -179,6 +180,8 @@ click and exits actionless when the server goes away. Accepted failure mode; the
 - `agent` — launches the default coding agent auto-approved: the harness named in `~/.config/agent/default`,
   else the first of claude/codex/gemini on `PATH`. `--inline` stays in the current terminal, `--prompt "..."`
   seeds the first message; otherwise it opens a floating alacritty (class `agent-tui`, see the window rule).
+  It does **not** `cd` anywhere — launching from `$HOME` starts the agent in `$HOME` (by request; Omarchy
+  hopped to `~/Projects` to dodge the harness's workspace-trust prompt, an accepted trade-off here).
 - `agent-crash` — `agent-crash <pid> [name] [exe] [signal]`: turns a coredump PID into an AI diagnosis. Adds
   the `coredumpctl` timestamp, `cd`s to this repo (the only place the agent may fix) and points it at the
   `diagnose-crash` skill. Runnable by hand against any PID in `coredumpctl list`.
@@ -199,8 +202,11 @@ click and exits actionless when the server goes away. Accepted failure mode; the
 `.zshrc` sources `.zsh_agents`, the layout helpers ported from Omarchy Quattro: herdr splits `hdl` / `hds` /
 `hdlm` / `hsl`, their tmux twins `tdl` / `tds` / `tdlm` / `tsl`, and the alias `a` = `agent --inline`. Every
 function opens with `emulate -L ksh` so the upstream bash (0-based arrays, word splitting) ports verbatim —
-keep that line if you edit one. herdr is not installed here and no layout has been run end to end; panes
-that start optional tools (hunk, opencode) just print command-not-found.
+keep that line if you edit one. One deliberate divergence: `hdl`/`hds` end the editor pane's command with
+`; exec ${SHELL:-zsh}` so quitting the editor drops to a shell instead of tearing the pane down (the tmux
+twins type into a persistent shell already and need no such thing). herdr is not installed here and no
+layout has been run end to end; panes that start optional tools (hunk, opencode) just print
+command-not-found.
 
 ## Conventions
 - **No emojis in any source file or comment** — hard rule, no exceptions.

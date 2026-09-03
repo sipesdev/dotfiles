@@ -137,12 +137,10 @@ function heroStatus(record) {
     return "Subscription";
 }
 
-function todayLine(record) {
-    if (!record) return "";
-    var t = Number(record.todayTotalTokens) || 0;
-    var p = Number(record.todayPrompts) || 0;
-    if (t === 0 && p === 0) return "No usage today";
-    return "Today: " + formatTokenCount(t) + " tokens, " + p + " prompts";
+// Detail beside the TOKENS header; today's token total already has its own row.
+function promptsToday(record) {
+    var p = (record && Number(record.todayPrompts)) || 0;
+    return p > 0 ? p + " prompts today" : "";
 }
 
 // Auth help surfaces only when something is actually wrong.
@@ -168,6 +166,6 @@ if (typeof module !== "undefined") {
         friendlyModelName: friendlyModelName, formatTokenCount: formatTokenCount,
         limitRows: limitRows, formatDuration: formatDuration, resetText: resetText,
         weekRows: weekRows, modelRows: modelRows, heroStatus: heroStatus,
-        todayLine: todayLine, statusLine: statusLine, anyLimitHot: anyLimitHot
+        promptsToday: promptsToday, statusLine: statusLine, anyLimitHot: anyLimitHot
     };
 }

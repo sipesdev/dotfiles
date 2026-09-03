@@ -106,8 +106,9 @@ test("heroStatus and statusLine precedence", () => {
     assert.equal(M.statusLine({ authHelpText: "help", retryAdvised: true }), "help");
 });
 
-test("todayLine", () => {
-    assert.equal(M.todayLine({ todayTotalTokens: 1200000, todayPrompts: 41 }),
-        "Today: 1.2M tokens, 41 prompts");
-    assert.equal(M.todayLine({}), "No usage today");
+test("promptsToday is blank without prompts", () => {
+    assert.equal(M.promptsToday({ todayPrompts: 1272 }), "1272 prompts today");
+    assert.equal(M.promptsToday({ todayPrompts: 0 }), "");
+    assert.equal(M.promptsToday({}), "");
+    assert.equal(M.promptsToday(null), "");
 });

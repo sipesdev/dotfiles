@@ -221,6 +221,9 @@ Singleton {
         agentUpdate.running = true;
     }
     function refreshAgentLimits() { runAgentUsage(["--limits-only"]) }
+    // The drawer's refresh button: skip both caches, and dim itself while busy.
+    readonly property bool agentUsageBusy: agentUpdate.running
+    function forceAgentRefresh() { runAgentUsage(["--force"]) }
 
     Timer {
         interval: 900000; running: true; repeat: true; triggeredOnStart: true

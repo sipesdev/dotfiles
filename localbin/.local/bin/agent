@@ -61,9 +61,6 @@ gemini)
   ;;
 esac
 
-# Agents refuse to persist trust for $HOME itself; land somewhere they will.
-[[ $PWD == "$HOME" && -d $HOME/Projects ]] && cd "$HOME/Projects"
-
 if ((inline)); then
   exec "${cmd[@]}"
 fi
