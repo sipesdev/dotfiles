@@ -20,6 +20,9 @@ hl.env("QT_STYLE_OVERRIDE", "kvantum")
 -- LibreOffice: GTK3 widgets so it takes adw-gtk3-dark + the matte gtk.css -- login-phase copy lives in ~/.config/uwsm/env
 hl.env("SAL_USE_VCLPLUGIN", "gtk3")
 hl.env("MOZ_ENABLE_WAYLAND", "1")
+-- Editor: a terminal frame on the Emacs daemon (systemd emacs.service) -- login-phase copy lives in ~/.config/uwsm/env
+hl.env("EDITOR", "emacsclient -t")
+hl.env("VISUAL", "emacsclient -t")
 
 -- Electron / Chromium (Brave web apps, VS Code, etc.) → native Wayland
 hl.env("ELECTRON_OZONE_PLATFORM_HINT", "auto")

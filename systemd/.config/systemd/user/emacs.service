@@ -1,0 +1,15 @@
+[Unit]
+Description=Emacs daemon for the graphical session (Doom Emacs)
+Documentation=info:emacs man:emacs(1) https://gnu.org/software/emacs/
+After=graphical-session.target
+PartOf=graphical-session.target
+ConditionEnvironment=WAYLAND_DISPLAY
+
+[Service]
+Type=notify
+ExecStart=/usr/bin/emacs --fg-daemon
+SuccessExitStatus=15
+Restart=on-failure
+
+[Install]
+WantedBy=graphical-session.target

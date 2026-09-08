@@ -31,3 +31,10 @@ agents-setup:
 	systemctl --user daemon-reload
 	systemctl --user enable --now crash-watch.service
 	systemctl --user is-active crash-watch.service
+
+# ── Emacs daemon (systemd package ships the unit; enabling is one-off) ──
+.PHONY: emacs-setup
+emacs-setup:
+	systemctl --user daemon-reload
+	systemctl --user enable --now emacs.service
+	systemctl --user is-active emacs.service
