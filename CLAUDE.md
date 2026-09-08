@@ -40,8 +40,9 @@ a package.
 - `qt`         → `~/.config/qt5ct`, `qt6ct`, `Kvantum` (Kvantum matte-black for Qt5/Qt6)
 - `uwsm`       → `~/.config/uwsm/env`           (login-phase session env; **activates** the Qt theme)
 - `alacritty`  → `~/.config/alacritty`          (matte-black terminal; `JetBrainsMono Nerd Font`, matches the Quickshell `Theme.qml` system font)
+- `doom`       → `~/.config/doom`, `~/.local/share/applications/emacs.desktop` (Doom Emacs private config + launcher entry; the framework is an untracked clone at `~/.config/emacs` — see Emacs below)
 - `agents`     → `~/.agents/skills`             (cross-harness agent skills; `make agents-setup` links them into `~/.claude/skills`)
-- `systemd`    → `~/.config/systemd/user`       (crash-watch unit; enabled once via `make agents-setup`)
+- `systemd`    → `~/.config/systemd/user`, `~/.config/environment.d` (crash-watch + emacs daemon units; the user-manager PATH; enabled once via `make agents-setup` / `make emacs-setup`)
 
 ## Theming (`gtk/`, `qt/`, `uwsm/`) — matte black across toolkits
 GTK apps use `adw-gtk3-dark` recolored to matte black by `gtk-3.0/gtk.css` + `gtk-4.0/gtk.css`
@@ -168,6 +169,38 @@ click and exits actionless when the server goes away. Accepted failure mode; the
   (`actual_brightness` 0) from raw ~64880 up; "100" is the brightest the panel actually reaches.
 - `bluetooth-power` — `on` / `off` via `rfkill unblock|block bluetooth` (BlueZ's Powered is not persisted;
   the block is). `on` waits for `Powered: yes`, falling back to `bluetoothctl power on`. Explicit
+## Emacs (`doom/`, `systemd/`) — Doom Emacs on a per-session daemon
+`emacs-wayland` (pgtk, native-comp) running **Doom Emacs**. The framework is an **untracked** shallow clone
+of `doomemacs/core` at `~/.config/emacs` (its `doom` CLI is on PATH via `.zshrc`/`.bashrc`); only the
+private config is tracked, as the stowed `doom` package → `~/.config/doom/{init,config,packages}.el`.
+`doom sync` after editing `init.el` or `packages.el`; `config.el` edits need only a daemon restart
+(`systemctl --user restart emacs.service`) or `M-x doom/reload`; `doom upgrade` updates framework and
+packages; `doom doctor` when something is off. `config.el` sets `doom-font` to `JetBrainsMono Nerd Font`
+11pt (the alacritty / `Theme.qml` font); the theme is `matte-black`
+(`doom/.config/doom/themes/matte-black-theme.el`, derived from doom-one with the `alacritty.toml` palette
+— change a color in one, change it in the other). Emacs writes through the stow symlinks (no atomic
+rename), but edit at the repo path anyway and run `stow-doctor` if a link looks stale.
+- **Daemon:** `systemd/.config/systemd/user/emacs.service` shadows the vendor unit so it is
+  `WantedBy=`/`PartOf=graphical-session.target` — it starts after uwsm has exported the session env
+  (`WAYLAND_DISPLAY`, the Qt/GTK vars) and stops at logout, like `crash-watch`. Enabled once via
+  `make emacs-setup`. No Doom envvar file (`doom install --no-env`): the daemon inherits the systemd
+  user manager's environment, which `environment.d/10-path.conf` gives the shells' PATH prefix
+  (`~/.local/bin`, `~/.config/emacs/bin`) and uwsm/env the rest of the session variables.
+- **Editor:** `EDITOR`/`VISUAL` are `emacsclient -t` (login copy in `uwsm/env`, in-session copy in
+  `modules/envs.lua`), so `git commit` and the `.zsh_agents` editor panes (`${EDITOR:-nvim} .`) open a terminal
+  frame on the daemon. `SUPER+SHIFT+E` opens an Alacritty running `emacsclient -t -a ''` (terminal Emacs is the default
+  everywhere; `emacsclient -c` still gives a GUI frame; `-a ''` starts a daemon if the unit is down).
+- **Terminal first, GUI-identical.** `emacs` in a shell is aliased to `emacsclient -t -a ''` and the
+  launcher's "Emacs" entry (`doom/.local/share/applications/emacs.desktop`, shadowing the vendor one; "Emacs
+  (Client)" stays the GUI entry) runs the same Alacritty command as `SUPER+SHIFT+E`; Alacritty is truecolor
+  and uses the same Nerd Font, so a terminal frame paints the theme's exact colors (the unit exports
+  `COLORTERM=truecolor`: Emacs sizes a tty frame's palette from the daemon's environment, not the client's,
+  and without it `emacsclient -t` is 256-color), shows the modeline icons (`doom-modeline-icon t`) and, on
+  Emacs 31, gets child-frame popups. `:os tty` gives it mouse, cursor shapes and OSC 52 clipboard. Terminal
+  frames keep the terminal's own background (`+matte/tty-transparent-bg` in `config.el`) so Alacritty's
+  opacity shows through; solaire-mode is disabled in `packages.el`, so the dashboard, popups and sidebars
+  keep that same background instead of `bg-alt` (an opaque darker block in terminal frames otherwise).
+
   direction only.
 - `autobrightness` — ALS-driven backlight. Does a one-shot read of `/sys/.../in_illuminance_raw` at start
   (because `monitor-sensor` only emits on change), then streams. Started/stopped by `Sys.autoBrightness`.
