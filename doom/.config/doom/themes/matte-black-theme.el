@@ -28,12 +28,7 @@
   :group 'matte-black-theme
   :type 'boolean)
 
-(defcustom matte-black-brighter-comments nil
-  "If non-nil, comments will be highlighted in more vivid colors."
-  :group 'matte-black-theme
-  :type 'boolean)
-
-(defcustom matte-black-comment-bg matte-black-brighter-comments
+(defcustom matte-black-comment-bg nil
   "If non-nil, comments will have a subtle highlight to enhance their
 legibility."
   :group 'matte-black-theme
@@ -145,8 +140,6 @@ Can be an integer to determine the exact padding."
    (doom-modeline-buffer-file :inherit 'mode-line-buffer-id :weight 'bold)
    (doom-modeline-buffer-path :inherit 'mode-line-emphasis :weight 'bold)
    (doom-modeline-buffer-project-root :foreground green :weight 'bold)
-   ;;;; elscreen
-   (elscreen-tab-other-screen-face :background "#353a42" :foreground "#1e2022")
    ;;;; ivy
    (ivy-current-match :background dark-blue :distant-foreground base0 :weight 'normal)
    ;;;; LaTeX-mode

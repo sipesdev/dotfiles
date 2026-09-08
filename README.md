@@ -29,7 +29,7 @@ git clone git@github.com:sipesdev/dotfiles.git ~/Projects/dotfiles
 cd ~/Projects/dotfiles && bash install.sh   # or: make stow
 make dns                                    # root: Cloudflare DNS for every connection (etc/NetworkManager/conf.d/20-dns.conf)
 git clone --depth 1 https://github.com/doomemacs/core ~/.config/emacs && ~/.config/emacs/bin/doom install --no-env   # Doom framework (untracked); uses the stowed ~/.config/doom
-make emacs-setup                            # enable the Emacs daemon (user unit from the systemd package)
+make emacs-setup                            # enable the Emacs daemon (systemd user unit); it starts with the first Hyprland login
 ```
 
 `make dns` installs the NetworkManager global-DNS override (`1.1.1.1` / `1.0.0.1`, overriding

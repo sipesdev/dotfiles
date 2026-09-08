@@ -37,4 +37,5 @@ agents-setup:
 emacs-setup:
 	systemctl --user daemon-reload
 	systemctl --user enable --now emacs.service
-	systemctl --user is-active emacs.service
+	systemctl --user is-enabled emacs.service
+	-systemctl --user is-active emacs.service   # inactive until the first graphical session (ConditionEnvironment=WAYLAND_DISPLAY)
