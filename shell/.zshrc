@@ -87,6 +87,8 @@ alias ff='fastfetch'
 
 # Add ~/.local/bin to PATH (web2app, wifi-connect, etc.)
 case ":$PATH:" in *":$HOME/.local/bin:"*) ;; *) export PATH="$HOME/.local/bin:$PATH" ;; esac
+# Doom Emacs CLI: ~/.config/emacs is the untracked Doom checkout (see README)
+case ":$PATH:" in *":$HOME/.config/emacs/bin:"*) ;; *) export PATH="$HOME/.config/emacs/bin:$PATH" ;; esac
 
 # ── SSH agent (Bitwarden) ────────────────────────────────────────────
 # Bitwarden desktop is the SSH agent; private keys live in the vault,
