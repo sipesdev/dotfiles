@@ -17,7 +17,7 @@ This is my personally managed dotfiles for my Arch Linux installation. It comes 
 - `qt`         → `~/.config/{qt5ct,qt6ct,Kvantum}`         (Kvantum matte-black for Qt5/Qt6)
 - `uwsm`       → `~/.config/uwsm/env`                      (login-phase env; activates the Qt theme)
 - `alacritty`  → `~/.config/alacritty`                     (matte-black terminal; JetBrainsMono Nerd Font)
-- `doom`       → `~/.config/doom`                          (Doom Emacs private config: init/config/packages.el; the framework itself is an untracked clone, see below)
+- `doom`       → `~/.config/doom`                          (Doom Emacs private config + the matte-black theme built from the Alacritty palette; the framework itself is an untracked clone, see below)
 - `etc`        → `/etc/NetworkManager/conf.d` (root; applied by `make dns`, not stowed)
 
 Not stowed: `etc/` (root config, applied by `make dns`) and `tests/` (`make test` runs the pure-JS models behind the bar).

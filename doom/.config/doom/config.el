@@ -33,7 +33,7 @@
 ;; There are two ways to load a theme. Both assume the theme is installed and
 ;; available. You can either set `doom-theme' or manually load a theme with the
 ;; `load-theme' function. This is the default:
-(setq doom-theme 'doom-one)
+(setq doom-theme 'matte-black)
 ;; Specify both a dark and light theme, like so and Doom will choose which one
 ;; to load based on your system light/dark setting:
 ;;
@@ -81,3 +81,16 @@
 ;;
 ;; You can also try 'gd' (or 'C-c c d') to jump to their definition and see how
 ;; they are implemented.
+
+;; Terminal frames look like the GUI: Alacritty is truecolor and uses the same
+;; JetBrainsMono Nerd Font, so the matte-black theme paints identical colors and
+;; the modeline icons render there too. The default face keeps the terminal's
+;; own background so Alacritty's opacity shows through.
+(setq doom-modeline-icon t)
+(defun +matte/tty-transparent-bg (&optional frame)
+  "Give terminal frames (FRAME or all of them) the terminal's own background."
+  (dolist (f (if frame (list frame) (frame-list)))
+    (unless (display-graphic-p f)
+      (set-face-background 'default "unspecified-bg" f))))
+(add-hook 'after-make-frame-functions #'+matte/tty-transparent-bg)
+(add-hook 'doom-load-theme-hook #'+matte/tty-transparent-bg)

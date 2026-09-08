@@ -84,6 +84,7 @@ alias la='command ls -A  --color=auto'   # all files, columnar
 alias grep='grep --color=auto'
 alias ..='cd ..'
 alias ff='fastfetch'
+alias emacs="emacsclient -t -a ''"   # terminal Emacs on the daemon; \emacs runs the bare binary
 
 # Add ~/.local/bin to PATH (web2app, wifi-connect, etc.)
 case ":$PATH:" in *":$HOME/.local/bin:"*) ;; *) export PATH="$HOME/.local/bin:$PATH" ;; esac
