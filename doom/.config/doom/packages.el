@@ -51,3 +51,8 @@
 ;; (unpin! pinned-package another-pinned-package)
 ;; ...Or *all* packages (NOT RECOMMENDED; will likely break things)
 ;; (unpin! t)
+
+;; No solaire-mode: it paints non-file buffers (dashboard, popups, sidebars) in
+;; bg-alt, which in a daemon's terminal frame shows as an opaque darker block
+;; against Alacritty's #121212. One matte background everywhere, GUI and tty.
+(package! solaire-mode :disable t)

@@ -14,7 +14,10 @@ family = "JetBrainsMono Nerd Font"
 style = "Regular"
 
 [window]
-padding = { x = 12, y = 12 }
+# No padding: full-screen TUIs (Emacs, herdr) paint to the window edge instead of
+# sitting inside a frame. dynamic_padding spreads the leftover cell fraction
+# (tiled sizes are never a cell multiple) evenly instead of piling it up right/bottom.
+padding = { x = 0, y = 0 }
 dynamic_padding = true
 opacity = 0.96
 
