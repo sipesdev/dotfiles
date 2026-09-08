@@ -23,6 +23,7 @@ load("modules/envs.lua")         -- environment variables (Wayland, AMD)
 load("modules/input.lua")        -- keyboard / touchpad / gestures
 load("modules/looknfeel.lua")    -- general / decoration / misc (matte black)
 load("modules/animations.lua")   -- curves + animation tree
+load("modules/qconsole.lua")     -- Quake agent console (needs animations' curves, looknfeel's decoration)
 load("modules/windowrules.lua")  -- window rules
 load("modules/bindings.lua")     -- keybinds
 load("modules/autostart.lua")    -- launched once on session start

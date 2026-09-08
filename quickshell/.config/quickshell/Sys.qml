@@ -149,5 +149,107 @@ Singleton {
         function onDiscoveringChanged() { if (!sys.btAdapter.discovering) sys.btOwesDiscoveryStop = false; }
     }
 
+    // ── Agents usage (bar pill + AgentsDrawer) ───────────────────────
+    // One JSON record per coding agent under ~/.local/state/agents/usage/,
+    // written atomically by agent-usage-update; collectors print nothing for
+    // uninstalled CLIs so records appear and vanish with them. Sys owns the
+    // single 900s poller and the per-record FileViews (bars are per-monitor;
+    // none of this can live in the drawer).
+    readonly property string agentsUsageDir: Quickshell.env("HOME") + "/.local/state/agents/usage"
+    property var agentIds: []
+    property var agents: []                  // AgentRecord instances
+    property int agentDataRevision: 0        // bumped on any record (re)load
+
+    readonly property var agentRecords: {
+        var rev = agentDataRevision;         // tracked dependency
+        var out = [];
+        for (var i = 0; i < agents.length; i++)
+            if (agents[i].record) out.push(agents[i].record);
+        return out;
+    }
+    readonly property bool agentsReady: {
+        var recs = agentRecords;
+        for (var i = 0; i < recs.length; i++) if (recs[i].ready === true) return true;
+        return false;
+    }
+
+    Process {
+        id: agentList
+        command: ["sh", "-c", "find " + Quickshell.env("HOME")
+            + "/.local/state/agents/usage -maxdepth 1 -name '*.json' -printf '%f\\n' 2>/dev/null; true"]
+        stdout: StdioCollector { onStreamFinished: sys.applyAgentListing(text) }
+    }
+    // Only reassign agentIds when the set actually changed, so the FileViews
+    // (and their watches) are not torn down on every listing.
+    function applyAgentListing(text) {
+        var ids = text.trim() === "" ? [] : text.trim().split("\n").map(function (f) {
+            return f.replace(/\.json$/, "");
+        }).sort();
+        if (JSON.stringify(ids) !== JSON.stringify(sys.agentIds)) sys.agentIds = ids;
+    }
+
+    Instantiator {
+        id: agentInst
+        model: sys.agentIds
+        delegate: AgentRecord {
+            agentId: modelData
+            path: sys.agentsUsageDir + "/" + modelData + ".json"
+            onRecordChanged: sys.agentDataRevision++
+        }
+        onObjectAdded: (index, object) => sys.rebuildAgents()
+        onObjectRemoved: (index, object) => sys.rebuildAgents()
+    }
+    function rebuildAgents() {
+        var out = [];
+        for (var i = 0; i < agentInst.count; i++) out.push(agentInst.objectAt(i));
+        sys.agents = out;
+        sys.agentDataRevision++;
+    }
+
+    Process {
+        id: agentUpdate
+        onExited: {
+            agentList.running = true;
+            // Insurance: FileView watches the inode; mktemp+mv replaced it.
+            for (var i = 0; i < sys.agents.length; i++) sys.agents[i].reload();
+        }
+    }
+    function runAgentUsage(extraArgs) {
+        if (agentUpdate.running) return;     // 900s cadence; a dropped tick is fine
+        agentUpdate.command = [Quickshell.env("HOME") + "/.local/bin/agent-usage-update"]
+            .concat(extraArgs || []);
+        agentUpdate.running = true;
+    }
+    function refreshAgentLimits() { runAgentUsage(["--limits-only"]) }
+    // The drawer's refresh button: skip both caches, and dim itself while busy.
+    readonly property bool agentUsageBusy: agentUpdate.running
+    function forceAgentRefresh() { runAgentUsage(["--force"]) }
+
+    Timer {
+        interval: 900000; running: true; repeat: true; triggeredOnStart: true
+        onTriggered: sys.runAgentUsage([])
+    }
+
+    // One 30s retry when a collector says its probe failed transiently.
+    Timer {
+        id: agentRetry
+        interval: 30000
+        onTriggered: sys.refreshAgentLimits()
+    }
+    onAgentDataRevisionChanged: {
+        var retry = false;
+        for (var i = 0; i < agents.length; i++) {
+            var r = agents[i].record;
+            if (r && r.retryAdvised === true) retry = true;
+        }
+        if (retry && !agentRetry.running) agentRetry.start();
+        else if (!retry) agentRetry.stop();
+    }
+
+    // Right-click on the pill: a floating agent terminal (the script detaches
+    // itself via setsid, like ArchButton's launcher).
+    Process { id: agentLaunch; command: [Quickshell.env("HOME") + "/.local/bin/agent"] }
+    function launchAgentTerminal() { agentLaunch.running = true }
+
     Component.onCompleted: sys.refreshEthernet()
 }

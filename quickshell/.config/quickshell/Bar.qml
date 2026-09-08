@@ -1,6 +1,7 @@
 import Quickshell
 import Quickshell.Wayland
 import QtQuick
+import "AgentModel.js" as AgentModel
 
 PanelWindow {
     id: bar
@@ -49,6 +50,16 @@ PanelWindow {
 
         SysTray { anchors.verticalCenter: parent.verticalCenter }
         BarIcon {
+            id: agentsIcon
+            anchors.verticalCenter: parent.verticalCenter
+            visible: Sys.agentsReady               // self-hides with no ready records
+            glyph: Theme.iRobot
+            glyphColor: AgentModel.anyLimitHot(Sys.agentRecords) ? Theme.accent : Theme.text
+            active: bar.openPopout === "agents"
+            onClicked: bar.togglePopout("agents")
+            onRightClicked: Sys.launchAgentTerminal()   // Omarchy: right-click launches the agent
+        }
+        BarIcon {
             id: btIcon
             anchors.verticalCenter: parent.verticalCenter
             glyph: Theme.btGlyph(Sys.btOn, Sys.btConnected)
@@ -95,6 +106,7 @@ PanelWindow {
     NetworkDrawer     { barWindow: bar; key: "network";   anchorItem: netIcon }
     AudioDrawer       { barWindow: bar; key: "audio";     anchorItem: audioIcon }
     DisplayDrawer     { barWindow: bar; key: "display";   anchorItem: displayIcon }
+    AgentsDrawer      { barWindow: bar; key: "agents";    anchorItem: agentsIcon }
 
     // Notifications share the popouts' top-right corner, so an open popout holds the
     // stack: arrivals queue and visible cards freeze until it closes. Cleared on

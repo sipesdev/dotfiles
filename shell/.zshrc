@@ -102,3 +102,6 @@ export NVM_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/nvm"
 [ -e "$NVM_DIR/nvm.sh" ]   || ln -s /usr/share/nvm/nvm.sh   "$NVM_DIR/nvm.sh"
 [ -e "$NVM_DIR/nvm-exec" ] || ln -s /usr/share/nvm/nvm-exec "$NVM_DIR/nvm-exec"
 [ -s /usr/share/nvm/nvm.sh ] && source /usr/share/nvm/nvm.sh
+
+# ── Agent workspace layouts (herdr/tmux splits + the `a` alias) ──────
+[[ -r "$HOME/.zsh_agents" ]] && source "$HOME/.zsh_agents"

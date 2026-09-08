@@ -1,0 +1,453 @@
+#!/usr/bin/python
+"""Usage collector for Claude Code (agents drawer).
+
+Prints one display-ready JSON record to stdout, or NOTHING (exit 0) when
+Claude Code has no config dir on this machine.
+
+Local stats:  $CLAUDE_CONFIG_DIR (default ~/.claude)/projects/**/*.jsonl --
+              assistant entries' message.usage token counts, deduped on
+              message.id (streaming repeats it), bucketed per model and per
+              LOCAL day. Incremental: a per-file event cache keyed on
+              (mtime, size) so only changed transcripts are reparsed
+              (~170 files / 133 MB here).
+Limits:       GET https://api.anthropic.com/api/oauth/usage with the OAuth
+              access token from .credentials.json. UNDOCUMENTED endpoint (it is
+              what Claude Code's own /usage calls): every parse degrades
+              gracefully, and a probe failure NEVER blanks local stats.
+              The token is used in the Authorization header ONLY -- it must
+              never be printed, logged, or included in the record.
+"""
+
+import fcntl
+import json
+import os
+import re
+import sys
+import tempfile
+import time
+import urllib.error
+import urllib.request
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+SCHEMA_VERSION = 1
+PROBE_FLOOR_SECONDS = 15
+USAGE_URL = "https://api.anthropic.com/api/oauth/usage"
+
+
+def config_dir():
+    return Path(os.environ.get("CLAUDE_CONFIG_DIR", str(Path.home() / ".claude")))
+
+
+def cache_dir():
+    root = Path(os.environ.get("XDG_CACHE_HOME", str(Path.home() / ".cache")))
+    d = root / "agents" / "usage"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def read_json(path):
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return None
+
+
+def write_json(path, obj):
+    fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix="." + path.name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(obj, f)
+        os.replace(tmp, path)
+    except OSError:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+
+
+def local_day(ts):
+    """ISO timestamp (Z or offset) or epoch ms -> local YYYY-MM-DD, else None."""
+    try:
+        if isinstance(ts, bool) or ts is None:
+            return None
+        if isinstance(ts, (int, float)):
+            dt = datetime.fromtimestamp(ts / 1000, tz=timezone.utc)
+        else:
+            dt = datetime.fromisoformat(str(ts).replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone().strftime("%Y-%m-%d")
+    except (ValueError, TypeError, OSError, OverflowError):
+        return None
+
+
+def usage_tokens(usage):
+    def n(*keys):
+        for k in keys:
+            v = usage.get(k)
+            if isinstance(v, (int, float)) and not isinstance(v, bool):
+                return int(v)
+        return 0
+    return (n("input_tokens", "inputTokens"),
+            n("output_tokens", "outputTokens"),
+            n("cache_read_input_tokens", "cacheReadInputTokens"),
+            n("cache_creation_input_tokens", "cacheCreationInputTokens"))
+
+
+def file_events(path):
+    """Parse one transcript into [[id, model, day, in, out, cacheRead, cacheWrite], ...]."""
+    events = []
+    try:
+        with open(path, encoding="utf-8", errors="replace") as f:
+            for line in f:
+                if '"usage":' not in line:
+                    continue
+                try:
+                    obj = json.loads(line)
+                except ValueError:
+                    continue
+                if not isinstance(obj, dict) or obj.get("type") != "assistant":
+                    continue
+                msg = obj.get("message")
+                if not isinstance(msg, dict):
+                    continue
+                usage = msg.get("usage")
+                if not isinstance(usage, dict):
+                    continue
+                day = local_day(obj.get("timestamp"))
+                if not day:
+                    continue
+                mid = msg.get("id") or "%s:%s" % (path, obj.get("uuid")
+                                                  or obj.get("requestId") or len(events))
+                model = msg.get("model") or "unknown"
+                i, o, cr, cw = usage_tokens(usage)
+                events.append([mid, model, day, i, o, cr, cw])
+    except OSError:
+        pass
+    return events
+
+
+def scan(claude_dir, cache_path=None, force=False):
+    """Aggregate all project transcripts, incrementally via a per-file cache.
+
+    Dedupe is GLOBAL across files (a resumed/forked session repeats message ids
+    in a new transcript), so events are cached per file but summed with one
+    shared seen-set.
+    """
+    projects = Path(claude_dir) / "projects"
+    cached_files = {}
+    if cache_path and not force:
+        cache = read_json(cache_path)
+        if isinstance(cache, dict) and cache.get("schemaVersion") == SCHEMA_VERSION \
+                and isinstance(cache.get("files"), dict):
+            cached_files = cache["files"]
+
+    files = {}
+    if projects.is_dir():
+        for path in sorted(projects.rglob("*.jsonl")):
+            try:
+                st = path.stat()
+            except OSError:
+                continue
+            key = str(path)
+            prev = cached_files.get(key)
+            if isinstance(prev, dict) and prev.get("mtime") == st.st_mtime \
+                    and prev.get("size") == st.st_size:
+                files[key] = prev
+            else:
+                files[key] = {"mtime": st.st_mtime, "size": st.st_size,
+                              "events": file_events(path)}
+
+    if cache_path:
+        write_json(Path(cache_path), {"schemaVersion": SCHEMA_VERSION, "files": files})
+
+    return aggregate(files)
+
+
+def aggregate(files):
+    seen = set()
+    model_usage = {}
+    day_tokens = {}
+    day_prompts = {}
+    total_prompts = 0
+    sessions = 0
+    today_sessions = 0
+    today = datetime.now().astimezone().strftime("%Y-%m-%d")
+    today_by_model = {}
+
+    for info in files.values():
+        events = info.get("events") or []
+        counted = False
+        today_here = False
+        for ev in events:
+            try:
+                mid, model, day, i, o, cr, cw = ev
+            except (ValueError, TypeError):
+                continue
+            if mid in seen:
+                continue
+            seen.add(mid)
+            counted = True
+            # totalPrompts counts deduped assistant turns (a proxy; divergence
+            # from Omarchy, which also mined user prompts -- not worth the scan).
+            total_prompts += 1
+            mu = model_usage.setdefault(model, {
+                "inputTokens": 0, "outputTokens": 0,
+                "cacheReadInputTokens": 0, "cacheCreationInputTokens": 0})
+            mu["inputTokens"] += i
+            mu["outputTokens"] += o
+            mu["cacheReadInputTokens"] += cr
+            mu["cacheCreationInputTokens"] += cw
+            tokens = i + o + cr + cw
+            day_tokens[day] = day_tokens.get(day, 0) + tokens
+            day_prompts[day] = day_prompts.get(day, 0) + 1
+            if day == today:
+                today_here = True
+                today_by_model[model] = today_by_model.get(model, 0) + tokens
+        if counted:
+            sessions += 1
+        if today_here:
+            today_sessions += 1
+
+    recent = []
+    base = datetime.now().astimezone()
+    for back in range(6, -1, -1):
+        d = (base - timedelta(days=back)).strftime("%Y-%m-%d")
+        recent.append({"date": d, "messageCount": day_tokens.get(d, 0)})
+
+    active_dates = sorted(day_tokens)
+    return {
+        "modelUsage": model_usage,
+        "recentDays": recent,
+        "todayTotalTokens": day_tokens.get(today, 0),
+        "todayTokensByModel": today_by_model,
+        "todayPrompts": day_prompts.get(today, 0),
+        "todaySessions": today_sessions,
+        "totalPrompts": total_prompts,
+        "totalSessions": sessions,
+        "activeDates": active_dates,
+        "activeDays": len(active_dates),
+    }
+
+
+def oauth_login(claude_dir):
+    creds = read_json(Path(claude_dir) / ".credentials.json") or {}
+    oauth = creds.get("claudeAiOauth")
+    return oauth if isinstance(oauth, dict) else None
+
+
+def plan_label(rate_limit_tier, subscription_type):
+    m = re.search(r"max_(\d+x)", str(rate_limit_tier or ""), re.IGNORECASE)
+    if m:
+        return "Max " + m.group(1)
+    if subscription_type:
+        return str(subscription_type).capitalize()
+    return ""
+
+
+def scoped_window(key):
+    k = str(key or "").lower()
+    if "five_hour" in k or "session" in k:
+        return "Session"
+    if "seven_day" in k or "week" in k:
+        return "Weekly"
+    if "month" in k:
+        return "Monthly"
+    return str(key or "").replace("_", " ").title()
+
+
+def normalize_utilization(value, percent_scale):
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        return None
+    if percent_scale:
+        v /= 100.0
+    return max(0.0, min(1.0, v))
+
+
+def normalize_reset_at(value):
+    if value is None:
+        return ""
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        try:
+            return datetime.fromtimestamp(value, tz=timezone.utc).isoformat()
+        except (OSError, OverflowError, ValueError):
+            return ""
+    return str(value)
+
+
+def probe_limits(token):
+    req = urllib.request.Request(USAGE_URL, headers={
+        "Authorization": "Bearer " + token,
+        "anthropic-beta": "oauth-2025-04-20",
+        "Accept": "application/json",
+        "User-Agent": "agent-usage-claude",
+    })
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        return json.load(resp)
+
+
+def is_number(v):
+    return isinstance(v, (int, float)) and not isinstance(v, bool)
+
+
+def limit_label(entry):
+    """Row label for one limits[] entry, from its kind (and scoped model name)."""
+    kind = str(entry.get("kind") or "")
+    if kind == "session":
+        return "Session (5h)"
+    if kind == "weekly_all":
+        return "Weekly (7-day)"
+    if kind == "weekly_scoped":
+        scope = entry.get("scope")
+        model = scope.get("model") if isinstance(scope, dict) else None
+        name = model.get("display_name") if isinstance(model, dict) else None
+        return "Weekly (%s)" % name if name else "Weekly (model)"
+    return kind.replace("_", " ").title()
+
+
+def percent_limits(entries):
+    """[{label, percent, resetsAt}] from the live limits[] array, in payload order.
+
+    Entries carry kind/percent/resets_at/scope; percent arrives 0-100 here but
+    goes through the same >1 auto-detect as the buckets. Entries without a
+    numeric percent are skipped, so an unusable array returns [] and the caller
+    falls back to the bucket shape.
+    """
+    if not isinstance(entries, list):
+        return []
+    usable = [e for e in entries if isinstance(e, dict) and is_number(e.get("percent"))]
+    percent_scale = any(e["percent"] > 1 for e in usable)
+    return [{"label": limit_label(e),
+             "percent": normalize_utilization(e["percent"], percent_scale),
+             "resetsAt": normalize_reset_at(e.get("resets_at"))}
+            for e in usable]
+
+
+def parse_limits(payload):
+    """[{label, percent, resetsAt}] from the undocumented /api/oauth/usage shape.
+
+    Two shapes, both live somewhere: the current one is a limits[] array of
+    percent entries (session / weekly_all / weekly_scoped), which wins outright
+    when present. The older one is top-level five_hour / seven_day(_oauth_apps)
+    buckets with utilization+resets_at, kept as the fallback -- the endpoint is
+    undocumented and has already drifted once.
+    """
+    if not isinstance(payload, dict):
+        return []
+    rows = percent_limits(payload.get("limits"))
+    if rows:
+        return rows
+    buckets = []
+    for key, label in (("five_hour", "Session (5h)"),
+                       ("seven_day_oauth_apps", "Weekly (7-day)"),
+                       ("seven_day", "Weekly (7-day)")):
+        b = payload.get(key)
+        if isinstance(b, dict) and b.get("utilization") is not None:
+            buckets.append((label, b))
+    extra = payload.get("limits")
+    if isinstance(extra, list):
+        for b in extra:
+            if isinstance(b, dict) and b.get("utilization") is not None:
+                label = scoped_window(b.get("type") or b.get("name") or b.get("key"))
+                buckets.append((label, b))
+    # Utilization is a fraction on some plans and a 0-100 percent on others:
+    # any value > 1 means the whole payload is percent-scaled.
+    utils = [b.get("utilization") for _, b in buckets]
+    percent_scale = any(isinstance(u, (int, float)) and u > 1 for u in utils)
+    out = []
+    labels_seen = set()
+    for label, b in buckets:
+        if label in labels_seen:      # oauth_apps weekly supersedes plain weekly
+            continue
+        pct = normalize_utilization(b.get("utilization"), percent_scale)
+        if pct is None:
+            continue
+        labels_seen.add(label)
+        out.append({"label": label, "percent": pct,
+                    "resetsAt": normalize_reset_at(b.get("resets_at"))})
+    return out
+
+
+def stale_limits(cached):
+    """Reuse cached limits only while their reset windows are still open."""
+    out = []
+    now = datetime.now(timezone.utc)
+    for l in cached.get("limits") or []:
+        try:
+            if datetime.fromisoformat(str(l["resetsAt"]).replace("Z", "+00:00")) > now:
+                out.append(l)
+        except (KeyError, TypeError, ValueError):
+            continue
+    return out
+
+
+def collect_limits(oauth, force):
+    """-> (limits, tier_label, status_text, help_text, retry_advised)"""
+    if not oauth or not oauth.get("accessToken"):
+        return [], "", "Waiting for auth", "Sign in with `claude` to see rate limits.", False
+    tier = plan_label(oauth.get("rateLimitTier"), oauth.get("subscriptionType"))
+    expires = oauth.get("expiresAt")
+    if isinstance(expires, (int, float)) and expires / 1000 < time.time():
+        return [], tier, "Sign-in expired", "Re-authenticate in Claude Code (/login).", False
+
+    cpath = cache_dir() / "claude-limits.json"
+    cached = read_json(cpath) or {}
+    now = time.time()
+    if not force and isinstance(cached.get("probedAt"), (int, float)) \
+            and now - cached["probedAt"] < PROBE_FLOOR_SECONDS:
+        return cached.get("limits") or [], tier, "", "", False
+
+    try:
+        payload = probe_limits(oauth["accessToken"])
+        limits = parse_limits(payload)
+        write_json(cpath, {"probedAt": now, "limits": limits})
+        return limits, tier, "", "", False
+    except urllib.error.HTTPError as err:
+        if err.code in (401, 403):
+            return [], tier, "Sign-in expired", "Re-authenticate in Claude Code (/login).", False
+        return stale_limits(cached), tier, "", "Usage probe failed (HTTP %d)." % err.code, True
+    except (urllib.error.URLError, OSError, ValueError):
+        return stale_limits(cached), tier, "", "Usage probe failed; retrying.", True
+
+
+def main():
+    args = sys.argv[1:]
+    force = "--force" in args
+    # --limits-only is accepted for CLI parity; the incremental scan is cheap
+    # enough that local stats refresh on every run anyway (divergence from
+    # Omarchy's separate reuse window, deliberate).
+    claude_dir = config_dir()
+    if not claude_dir.is_dir():
+        return 0
+
+    lock_path = cache_dir() / "claude-scan.lock"
+    with open(lock_path, "w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        stats = scan(claude_dir, cache_path=cache_dir() / "claude-scan.json", force=force)
+
+    limits, tier, status, help_text, retry = collect_limits(oauth_login(claude_dir), force)
+
+    record = {
+        "schemaVersion": SCHEMA_VERSION,
+        "id": "claude",
+        "name": "Claude Code",
+        "updatedAt": datetime.now(timezone.utc).isoformat(),
+        "ready": bool(stats["totalPrompts"] or limits),
+        "tierLabel": tier,
+        "usageStatusText": status,
+        "authHelpText": help_text,
+        "retryAdvised": retry,
+        "limits": limits,
+    }
+    record.update(stats)
+    json.dump(record, sys.stdout)
+    print()
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

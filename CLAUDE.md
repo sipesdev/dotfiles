@@ -40,6 +40,8 @@ a package.
 - `qt`         → `~/.config/qt5ct`, `qt6ct`, `Kvantum` (Kvantum matte-black for Qt5/Qt6)
 - `uwsm`       → `~/.config/uwsm/env`           (login-phase session env; **activates** the Qt theme)
 - `alacritty`  → `~/.config/alacritty`          (matte-black terminal; `JetBrainsMono Nerd Font`, matches the Quickshell `Theme.qml` system font)
+- `agents`     → `~/.agents/skills`             (cross-harness agent skills; `make agents-setup` links them into `~/.claude/skills`)
+- `systemd`    → `~/.config/systemd/user`       (crash-watch unit; enabled once via `make agents-setup`)
 
 ## Theming (`gtk/`, `qt/`, `uwsm/`) — matte black across toolkits
 GTK apps use `adw-gtk3-dark` recolored to matte black by `gtk-3.0/gtk.css` + `gtk-4.0/gtk.css`
@@ -79,11 +81,18 @@ and `hypr/modules/envs.lua` (in-session).
 This build is configured in **Lua**, not the usual `.conf`/hyprlang. `hyprland.lua` is the entry point; it
 loads `modules/*.lua` by **absolute path via `loadfile()`** (plain `require("modules.x")` does not resolve
 in this build — don't use it). Modules: `animations, autostart, bindings, envs, input, looknfeel, monitors,
-windowrules`. The API surface (the `hl` global, `hl.bind`, `hl.dsp.*`) is described in the stub at
+qconsole, windowrules`. The API surface (the `hl` global, `hl.bind`, `hl.dsp.*`) is described in the stub at
 `/usr/share/hypr/stubs/hl.meta.lua` — consult it before guessing API shape. This applies to
 `hyprctl dispatch` too: it evaluates its argument as Lua (`hyprctl dispatch 'hl.dsp.dpms("off")'`);
 classic hyprlang forms like `hyprctl dispatch dpms off` fail to parse on this build. Also present:
 `hypridle.conf`, `hyprlock.conf`, `hyprpaper.conf`, `wallpaper.sh`, `wallpapers/`.
+- `modules/qconsole.lua` — the Quake agent console: `SUPER+grave` toggles the dimmed special workspace
+  `special:console`, seeded on first open with `agent --inline` (class `agent-console`). It is **tiled**
+  and sized by the workspace's bottom gap (top half of the usable area), recomputed on monitor focus and
+  layout changes; a window rule would freeze that size at map time, so don't reach for one.
+- `SUPER+SHIFT+A` runs `~/.local/bin/agent`, whose terminal (class `agent-tui`) the `float-agent-tui` rule
+  floats and centers at 60% x 60% — a different class from the console precisely so it is not floated.
+
 **Reload:** `hyprctl reload`.
 
 ## Quickshell (`quickshell/`) — 0.3.0, hand-written QML
@@ -105,7 +114,7 @@ disk): look for `Configuration Loaded` with no `error` lines after it — ignore
 
 ### Bar modules (`BarDrawer` / `BarIcon`)
 The right cluster is one pill per module (`BarIcon`; `Battery.qml` for power) and one drawer per
-module: `BluetoothDrawer`, `NetworkDrawer`, `AudioDrawer`, `DisplayDrawer`, `PowerDrawer`, all
+module: `BluetoothDrawer`, `NetworkDrawer`, `AudioDrawer`, `DisplayDrawer`, `PowerDrawer`, `AgentsDrawer`, all
 `BarDrawer { barWindow: bar; key: "<name>"; anchorItem: <pill> }`. `BarDrawer.qml` owns the
 popout shell (welded under the bar, `reveal` slide, `DrawerShadow`, focus grab); `Bar.qml` owns
 arbitration: `openPopout` holds the open key, pills call `togglePopout(key)`, a drawer's grab
@@ -115,15 +124,26 @@ native NetworkManager / BlueZ state (`wifiDevice`, `wifiNetwork`, `wifiStrength`
 `btConnected`) that both the pills and drawers read, owns Bluetooth power (`setBluetoothPower`, via the
 rfkill soft block so the choice survives a reboot) and the one discovery session every monitor's Bluetooth
 drawer shares (`btDrawersOpen`, `btOwesDiscoveryStop`: scan only while a drawer is open, stopped after
-close against BlueZ's confirmed state). Primitives: `DrawerHero`, `SectionHeader`,
-`ListRow`, `SliderRow`, `TogglePill`/`ToggleRow`, `Pill`, `PowerBtn`, `BarSlider`. Logic that can be
-pure lives in `NetModel.js` / `AudioModel.js` / `PowerModel.js` / `BtModel.js` / `ListSync.js` (in-place `ListModel` updates, so list delegates and their hover survive a refresh) and is tested by
-`make test` from `tests/quickshell/` (deliberately outside every stow package). The network drawer
-polls `~/.local/bin/network-probe` (1.5 s) only while open.
+close against BlueZ's confirmed state). It also owns the agents usage records (one `AgentRecord.qml`
+`FileView` per file under `~/.local/state/agents/usage/`, the 900 s `agent-usage-update` poller, a 30 s
+retry when a collector advises one, and `launchAgentTerminal()`); the agents pill is **hidden** unless some
+record reports `ready`, and right-clicking it launches the agent terminal. Primitives: `DrawerHero`,
+`SectionHeader`, `ListRow`, `SliderRow`, `TogglePill`/`ToggleRow`, `Pill`, `PowerBtn`, `BarSlider`. Logic
+that can be pure lives in `NetModel.js` / `AudioModel.js` / `PowerModel.js` / `BtModel.js` /
+`AgentModel.js` / `ListSync.js` (in-place `ListModel` updates, so list delegates and their hover survive a
+refresh) and is tested by `make test` — node over `tests/quickshell/`, python over `tests/agents/` (the
+collectors' pure functions); both trees sit deliberately outside every stow package. The network drawer
+polls `~/.local/bin/network-probe` (1.5 s) only while open; the agents drawer asks Sys for a
+`--limits-only` refresh when it opens and a `--force` one from its header refresh button (dimmed, and a
+no-op, while an update is already running).
 
 ### Notifications (`Notifs.qml`) — Quickshell owns the bus, not mako
-`Notifs.qml` is the notification daemon: it owns `org.freedesktop.Notifications`, caps every notification
-at 8s, and holds arrivals while a popout is open. **Never leave that bus name unowned** — D-Bus then
+`Notifs.qml` is the notification daemon: it owns `org.freedesktop.Notifications`, caps Normal and Low
+notifications at 8s, and holds arrivals while a popout is open. **Critical urgency is exempt from the
+cap** — a critical card never starts its countdown and stays until clicked or dismissed (overflow past the
+5 visible cards is the escape valve that stops the stack jamming). Two senders go critical: `crash-watch`,
+whose sticky toast is the click target, and `/usr/bin/uwsm-app`, which sends one when an app fails to launch
+(`agent` starts through it) — sticking is right for both. **Never leave that bus name unowned** — D-Bus then
 returns `ServiceUnknown` and some apps abort rather than degrade, so any config error that stops Quickshell
 loading also takes notifications down with it. Check with `busctl --user list | grep -i Notifications`.
 
@@ -137,6 +157,9 @@ unowned bus.
 Quickshell is therefore the only notification daemon on the box, and there is deliberately no fallback: if
 it fails to load, notifications are down until it loads again. That is what makes a config error under
 `quickshell/` more expensive than it looks — restart it and check the log (above) after any QML edit.
+A restart also drops any *pending* crash toast: `crash-watch`'s `notify-send` is blocked waiting for the
+click and exits actionless when the server goes away. Accepted failure mode; the recovery is to run
+`agent-crash <pid>` by hand against the PID in `coredumpctl list`.
 
 ## Helper scripts (`localbin/`)
 - `backlight` — the only writer of the panel backlight: `get` / `set N` (linear, 0-100 of the safe
@@ -154,7 +177,36 @@ it fails to load, notifications are down until it loads again. That is what make
   article to plain text via `python` (no lynx/w3m/pandoc on this box).
 - `network-probe` — default-route interface snapshot (iface/ip/gateway/rx/tx bytes + a 1.1.1.1 ping) as
   `key\tvalue` lines; nothing when there is no route.
+- `agent` — launches the default coding agent auto-approved: the harness named in `~/.config/agent/default`,
+  else the first of claude/codex/gemini on `PATH`. `--inline` stays in the current terminal, `--prompt "..."`
+  seeds the first message; otherwise it opens a floating alacritty (class `agent-tui`, see the window rule).
+  It does **not** `cd` anywhere — launching from `$HOME` starts the agent in `$HOME` (by request; Omarchy
+  hopped to `~/Projects` to dodge the harness's workspace-trust prompt, an accepted trade-off here).
+- `agent-crash` — `agent-crash <pid> [name] [exe] [signal]`: turns a coredump PID into an AI diagnosis. Adds
+  the `coredumpctl` timestamp, `cd`s to this repo (the only place the agent may fix) and points it at the
+  `diagnose-crash` skill. Runnable by hand against any PID in `coredumpctl list`.
+- `crash-watch` — follows the journal for systemd-coredump entries (run by `crash-watch.service`) and raises
+  one sticky critical toast per program per 60 s for *this user's* crashes; clicking it runs `agent-crash`.
+  Waits for the notification bus first, so a quickshell crash still announces itself once the shell is back.
+- `agent-usage-update` + `agent-usage-{claude,codex,gemini}` — usage records for the agents pill/drawer, one
+  JSON file per agent at `~/.local/state/agents/usage/<id>.json` (written atomically; `--force` bypasses the
+  scan and probe caches, `--limits-only` is accepted for CLI parity but the incremental transcript scan is
+  cheap enough to run anyway). A collector prints **nothing** when its CLI is absent, and the updater then
+  deletes the stale record so the pill self-hides — adding an agent is adding a collector. The claude
+  collector reads `~/.claude/.credentials.json` at runtime; the token rides in the `Authorization` header
+  only and is never printed, logged, or written into the record. Codex/gemini are ported but unverified —
+  neither CLI is installed here, so nothing below their absent-CLI gate has ever run.
 - `web2app`, `web2app-remove`.
+
+## Shell (`shell/`) — agent workspace layouts
+`.zshrc` sources `.zsh_agents`, the layout helpers ported from Omarchy Quattro: herdr splits `hdl` / `hds` /
+`hdlm` / `hsl`, their tmux twins `tdl` / `tds` / `tdlm` / `tsl`, and the alias `a` = `agent --inline`. Every
+function opens with `emulate -L ksh` so the upstream bash (0-based arrays, word splitting) ports verbatim —
+keep that line if you edit one. One deliberate divergence: `hdl`/`hds` end the editor pane's command with
+`; exec ${SHELL:-zsh}` so quitting the editor drops to a shell instead of tearing the pane down (the tmux
+twins type into a persistent shell already and need no such thing). herdr is not installed here and no
+layout has been run end to end; panes that start optional tools (hunk, opencode) just print
+command-not-found.
 
 ## Conventions
 - **No emojis in any source file or comment** — hard rule, no exceptions.
