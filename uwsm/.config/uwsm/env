@@ -19,6 +19,12 @@ export QT_STYLE_OVERRIDE=kvantum
 # LibreOffice: GTK3 widgets so it takes adw-gtk3-dark + the matte gtk.css (gtk4 backend is experimental)
 export SAL_USE_VCLPLUGIN=gtk3
 
+# Editor: the Emacs daemon (emacs.service, PartOf graphical-session.target) is
+# always up in a session, so git and the agent editor panes open a terminal
+# frame on it. In-session copy lives in hypr/modules/envs.lua.
+export EDITOR="emacsclient -t"
+export VISUAL="emacsclient -t"
+
 # Gaming: shared DXVK tuning for every Proton/Wine game (see dxvk package).
 # Steam inherits this at login; per-game DXVK_CONFIG overrides it on top.
 export DXVK_CONFIG_FILE="$HOME/.config/dxvk/dxvk.conf"

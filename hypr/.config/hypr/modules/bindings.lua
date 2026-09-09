@@ -12,12 +12,14 @@ local terminal = "alacritty"
 local files    = "nautilus"
 local browser  = "brave"
 local launcher = "walker"
+local editor   = "alacritty --class emacs -e emacsclient -t -a ''"   -- terminal Emacs on the daemon (emacs.service); -a '' starts one if it is down
 
 -- ── Applications (SUPER + SHIFT + letter) ─────────────────────────────
 hl.bind(mod .. " + SHIFT + T", hl.dsp.exec_cmd(terminal), { description = "Terminal" })
 hl.bind(mod .. " + SHIFT + F", hl.dsp.exec_cmd(files),    { description = "Files" })
 hl.bind(mod .. " + SHIFT + B", hl.dsp.exec_cmd(browser),  { description = "Browser" })
 hl.bind(mod .. " + SHIFT + A", hl.dsp.exec_cmd(home .. "/.local/bin/agent"), { description = "Agent (floating)" })
+hl.bind(mod .. " + SHIFT + E", hl.dsp.exec_cmd(editor),   { description = "Emacs (terminal)" })
 
 -- ── Launcher ──────────────────────────────────────────────────────────
 hl.bind(mod .. " + SPACE", hl.dsp.exec_cmd(launcher), { description = "App launcher" })

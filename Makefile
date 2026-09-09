@@ -1,6 +1,6 @@
 # GNU Stow dotfiles. `make` (or `make stow`) symlinks every package into $HOME.
 STOW := stow --no-folding --verbose --target=$(HOME)
-PKGS := hypr quickshell localbin webapps shell gtk qt uwsm alacritty gamemode mangohud dxvk agents systemd
+PKGS := hypr quickshell localbin webapps shell gtk qt uwsm alacritty gamemode mangohud dxvk agents systemd doom
 
 .PHONY: all stow restow unstow list test
 all: stow
@@ -31,3 +31,11 @@ agents-setup:
 	systemctl --user daemon-reload
 	systemctl --user enable --now crash-watch.service
 	systemctl --user is-active crash-watch.service
+
+# ── Emacs daemon (systemd package ships the unit; enabling is one-off) ──
+.PHONY: emacs-setup
+emacs-setup:
+	systemctl --user daemon-reload
+	systemctl --user enable --now emacs.service
+	systemctl --user is-enabled emacs.service
+	-systemctl --user is-active emacs.service   # inactive until the first graphical session (ConditionEnvironment=WAYLAND_DISPLAY)

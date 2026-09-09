@@ -17,16 +17,19 @@ This is my personally managed dotfiles for my Arch Linux installation. It comes 
 - `qt`         → `~/.config/{qt5ct,qt6ct,Kvantum}`         (Kvantum matte-black for Qt5/Qt6)
 - `uwsm`       → `~/.config/uwsm/env`                      (login-phase env; activates the Qt theme)
 - `alacritty`  → `~/.config/alacritty`                     (matte-black terminal; JetBrainsMono Nerd Font)
+- `doom`       → `~/.config/doom`, `~/.local/share/applications/emacs.desktop`  (Doom Emacs private config + the matte-black theme built from the Alacritty palette, and the launcher entry that opens terminal Emacs; the framework itself is an untracked clone, see below)
 - `etc`        → `/etc/NetworkManager/conf.d` (root; applied by `make dns`, not stowed)
 
 Not stowed: `etc/` (root config, applied by `make dns`) and `tests/` (`make test` runs the pure-JS models behind the bar).
 
 ## Deploy on a new machine
 ```sh
-sudo pacman -S --needed stow git adw-gtk-theme papirus-icon-theme kvantum kvantum-qt5 qt5ct qt6ct hyprland quickshell
+sudo pacman -S --needed stow git adw-gtk-theme papirus-icon-theme kvantum kvantum-qt5 qt5ct qt6ct hyprland quickshell emacs-wayland ripgrep fd
 git clone git@github.com:sipesdev/dotfiles.git ~/Projects/dotfiles
 cd ~/Projects/dotfiles && bash install.sh   # or: make stow
 make dns                                    # root: Cloudflare DNS for every connection (etc/NetworkManager/conf.d/20-dns.conf)
+git clone --depth 1 https://github.com/doomemacs/core ~/.config/emacs && ~/.config/emacs/bin/doom install --no-env   # Doom framework (untracked); uses the stowed ~/.config/doom
+make emacs-setup                            # enable the Emacs daemon (systemd user unit); it starts with the first Hyprland login
 ```
 
 `make dns` installs the NetworkManager global-DNS override (`1.1.1.1` / `1.0.0.1`, overriding
