@@ -94,3 +94,14 @@
       (set-face-background 'default "unspecified-bg" f))))
 (add-hook 'after-make-frame-functions #'+matte/tty-transparent-bg)
 (add-hook 'doom-load-theme-hook #'+matte/tty-transparent-bg)
+
+;; In-Emacs terminal: :term vterm (SPC o t popup, SPC o T here). Build its
+;; native module without asking, so the first vterm on a fresh machine does not
+;; stall a daemon frame on a y-or-n prompt (libvterm + cmake are installed).
+(setq vterm-always-compile-module t)
+
+;; Mouse in every terminal frame. Emacs 31 turns xterm-mouse-mode on by itself
+;; only for terminals that pass its clipboard+mouse probe: Alacritty does, a
+;; herdr pane does not, and without the tracking request herdr keeps clicks for
+;; its own text selection instead of forwarding them to Emacs.
+(xterm-mouse-mode 1)

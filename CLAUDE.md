@@ -200,6 +200,14 @@ rename), but edit at the repo path anyway and run `stow-doctor` if a link looks 
   frames keep the terminal's own background (`+matte/tty-transparent-bg` in `config.el`) so Alacritty's
   opacity shows through; solaire-mode is disabled in `packages.el`, so the dashboard, popups and sidebars
   keep that same background instead of `bg-alt` (an opaque darker block in terminal frames otherwise).
+- **Terminal inside Emacs:** `:term vterm` (`SPC o t` popup, `SPC o T` here). Its native `vterm-module.so` is
+  compiled on first load without asking (`vterm-always-compile-module t` in `config.el`; needs the installed
+  `libvterm` + `cmake`); a `doom sync` that rebuilds the vterm package drops the `.so` and the next load
+  rebuilds it. No external-terminal command by choice: keep it to vterm.
+- **Project drawer:** `:ui treemacs` (`SPC o p` toggles it, `SPC o P` reveals the current file); the
+  nerd-icons theme renders the same in terminal frames, and Doom wires it to workspaces, projectile, evil and
+  magit. Chosen over neotree (2026-09-08): twice the users, active upstream, incremental redraws and async git
+  status on large trees. A changed module list needs a daemon restart; `M-x doom/reload` does not reload it.
 
   direction only.
 - `autobrightness` — ALS-driven backlight. Does a one-shot read of `/sys/.../in_illuminance_raw` at start
