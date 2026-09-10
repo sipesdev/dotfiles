@@ -20,9 +20,15 @@ BarDrawer {
         return providers.length > 0 ? providers[0] : null;
     }
 
-    // Clock behind the "Resets in ..." countdowns; ticks only while open.
+    // Clock behind the "Resets in ..." countdowns; ticks only while open. triggeredOnStart
+    // refreshes it on every open: without it the first tick is 30 s in, and a shorter peek
+    // renders the countdown against the previous tick (or quickshell's start time).
     property real nowMs: Date.now()
-    Timer { interval: 30000; repeat: true; running: agents.shown; onTriggered: agents.nowMs = Date.now() }
+    Timer {
+        interval: 30000; repeat: true; triggeredOnStart: true
+        running: agents.shown
+        onTriggered: agents.nowMs = Date.now()
+    }
 
     onShownChanged: if (shown) Sys.refreshAgentLimits()
 
