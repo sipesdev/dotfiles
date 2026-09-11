@@ -10,7 +10,7 @@ import os
 import pathlib
 import tempfile
 import unittest
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 REPO = pathlib.Path(__file__).resolve().parents[2]
 BIN = REPO / "localbin" / ".local" / "bin"
@@ -138,6 +138,69 @@ class Scan(unittest.TestCase):
             os.utime(f, (st.st_mtime + 5, st.st_mtime + 5))
             s3 = claude.scan(root, cache_path=cache)
             self.assertEqual(s3["modelUsage"]["claude-opus-4-8"]["inputTokens"], 10)
+
+    def test_by_model_per_day(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = pathlib.Path(td)
+            proj = root / "projects" / "p"
+            proj.mkdir(parents=True)
+            now = datetime.now(timezone.utc)
+            fmt = "%Y-%m-%dT%H:%M:%S.000Z"
+            write_session(proj, "s.jsonl", [
+                entry("m1", "claude-opus-4-8", now.strftime(fmt)),                       # today: 36
+                entry("m2", "claude-sonnet-4-5", now.strftime(fmt), i=100),              # today: 126
+                entry("m3", "claude-opus-4-8", (now - timedelta(days=30)).strftime(fmt)),  # outside the week
+            ])
+            stats = claude.scan(root)
+            self.assertEqual(stats["recentDays"][-1]["byModel"],
+                             {"claude-opus-4-8": 36, "claude-sonnet-4-5": 126})
+            self.assertEqual(stats["todayTokensByModel"], stats["recentDays"][-1]["byModel"])
+            self.assertEqual(stats["recentDays"][0]["byModel"], {})
+            # The week carries only this week's opus tokens; all-time modelUsage still counts m3.
+            self.assertEqual(sum(d["byModel"].get("claude-opus-4-8", 0) for d in stats["recentDays"]), 36)
+            self.assertEqual(stats["modelUsage"]["claude-opus-4-8"]["inputTokens"], 20)
+
+
+class CodexAggregate(unittest.TestCase):
+    def test_by_model_per_day(self):
+        today = datetime.now().astimezone().strftime("%Y-%m-%d")
+        old = (datetime.now().astimezone() - timedelta(days=30)).strftime("%Y-%m-%d")
+        stats = codex.aggregate({"f": {"events": [
+            ["m1", "gpt-5", today, 10, 20, 5, 1],
+            ["m2", "gpt-5-mini", today, 100, 0, 0, 0],
+            ["m3", "gpt-5", old, 1000, 0, 0, 0],
+        ]}})
+        self.assertEqual(stats["recentDays"][-1]["byModel"], {"gpt-5": 36, "gpt-5-mini": 100})
+        self.assertEqual(stats["todayTokensByModel"], stats["recentDays"][-1]["byModel"])
+        self.assertEqual(stats["recentDays"][0]["byModel"], {})
+        self.assertEqual(stats["modelUsage"]["gpt-5"]["inputTokens"], 1010)
+
+
+class GeminiScan(unittest.TestCase):
+    def test_by_model_per_day(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = pathlib.Path(td)
+            chats = root / "tmp" / "proj" / "chats"
+            chats.mkdir(parents=True)
+            now = datetime.now(timezone.utc)
+            fmt = "%Y-%m-%dT%H:%M:%S.000Z"
+
+            def msg(mid, model, ts, inp):
+                return {"id": mid, "type": "gemini", "model": model, "timestamp": ts,
+                        "tokens": {"input": inp, "output": 5, "cached": 3, "thoughts": 2,
+                                   "tool": 1, "total": inp + 11}}
+
+            write_session(chats, "s.jsonl", [
+                msg("g1", "gemini-2.5-pro", now.strftime(fmt), 10),                        # today: 21
+                msg("g2", "gemini-2.5-flash", now.strftime(fmt), 100),                     # today: 111
+                msg("g3", "gemini-2.5-pro", (now - timedelta(days=30)).strftime(fmt), 1000),  # outside
+            ])
+            stats = gemini.scan(root)
+            self.assertEqual(stats["recentDays"][-1]["byModel"],
+                             {"gemini-2.5-pro": 21, "gemini-2.5-flash": 111})
+            self.assertEqual(stats["todayTokensByModel"], stats["recentDays"][-1]["byModel"])
+            self.assertEqual(stats["recentDays"][0]["byModel"], {})
+            self.assertEqual(stats["modelUsage"]["gemini-2.5-pro"]["inputTokens"], 1010)
 
 
 class ClaudeLimits(unittest.TestCase):

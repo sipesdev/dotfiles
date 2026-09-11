@@ -121,11 +121,11 @@ def scan(root):
     model_usage = {}
     day_tokens = {}
     day_prompts = {}
+    day_by_model = {}
     total_prompts = 0
     sessions = 0
     today_sessions = 0
     today = datetime.now().astimezone().strftime("%Y-%m-%d")
-    today_by_model = {}
 
     tmp = Path(root) / "tmp"
     chats = sorted(tmp.glob("*/chats/**/*.jsonl")) if tmp.is_dir() else []
@@ -161,10 +161,10 @@ def scan(root):
                               + ev["cacheReadInputTokens"])
                     day_tokens[day] = day_tokens.get(day, 0) + tokens
                     day_prompts[day] = day_prompts.get(day, 0) + 1
+                    by_model = day_by_model.setdefault(day, {})
+                    by_model[ev["model"]] = by_model.get(ev["model"], 0) + tokens
                     if day == today:
                         today_here = True
-                        today_by_model[ev["model"]] = \
-                            today_by_model.get(ev["model"], 0) + tokens
         except OSError:
             continue
         if counted:
@@ -172,18 +172,21 @@ def scan(root):
         if today_here:
             today_sessions += 1
 
+    # The drawer sums byModel over the same 7 rows it graphs, so the by-model
+    # list and the week graph always agree (modelUsage stays all-time).
     recent = []
     base = datetime.now().astimezone()
     for back in range(6, -1, -1):
         d = (base - timedelta(days=back)).strftime("%Y-%m-%d")
-        recent.append({"date": d, "messageCount": day_tokens.get(d, 0)})
+        recent.append({"date": d, "messageCount": day_tokens.get(d, 0),
+                       "byModel": day_by_model.get(d, {})})
 
     active_dates = sorted(day_tokens)
     return {
         "modelUsage": model_usage,
         "recentDays": recent,
         "todayTotalTokens": day_tokens.get(today, 0),
-        "todayTokensByModel": today_by_model,
+        "todayTokensByModel": day_by_model.get(today, {}),
         "todayPrompts": day_prompts.get(today, 0),
         "todaySessions": today_sessions,
         "totalPrompts": total_prompts,
