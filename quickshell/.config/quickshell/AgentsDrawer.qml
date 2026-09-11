@@ -150,10 +150,10 @@ BarDrawer {
         }
     }
 
-    SectionHeader { visible: modelRep.count > 0; Layout.fillWidth: true; text: "BY MODEL" }
+    SectionHeader { visible: modelRep.count > 0; Layout.fillWidth: true; text: "BY MODEL - 7 DAYS" }
     Repeater {
         id: modelRep
-        model: agents.provider ? AgentModel.modelRows(agents.provider) : []
+        model: agents.provider ? AgentModel.modelRows(agents.provider, "") : []
         ListRow {
             label: modelData.name
             trailing: AgentModel.formatTokenCount(modelData.total)
