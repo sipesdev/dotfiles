@@ -78,16 +78,21 @@ test("weekRows pads to 7, scales to peak, marks today", () => {
     assert.equal(rows[0].isToday, false);
 });
 
-test("modelRows keeps top 4 by total with ratios, drops zero rows", () => {
-    const u = (n) => ({ inputTokens: n, outputTokens: 0, cacheReadInputTokens: 0, cacheCreationInputTokens: 0 });
-    const rows = M.modelRows({ modelUsage: {
-        a: u(100), b: u(50), c: u(200), d: u(10), e: u(5), zero: u(0),
-    } });
-    assert.equal(rows.length, 4);
-    assert.equal(rows[0].total, 200);
+test("modelRows sums the same 7 days weekRows shows, keeps top 4, drops zero rows", () => {
+    const rows = M.modelRows({ recentDays: [
+        { date: "2026-08-26", messageCount: 900, byModel: { c: 900 } },          // 7 days back: outside
+        { date: "2026-08-27", messageCount: 100, byModel: { a: 100 } },          // 6 days back: first row
+        { date: "2026-09-01", messageCount: 265, byModel: { a: 100, b: 50, c: 100, d: 10, e: 5 } },
+        { date: "2026-09-02", messageCount: 150, byModel: { c: 150, zero: 0 } },
+    ] }, "2026-09-02");
+    assert.deepEqual(rows.map((r) => [r.name, r.total]), [["C", 250], ["A", 200], ["B", 50], ["D", 10]]);
     assert.equal(rows[0].ratio, 1);
-    assert.equal(rows[1].ratio, 0.5);
-    assert.deepEqual(M.modelRows({}), []);
+    assert.equal(rows[1].ratio, 0.8);
+    // All-time modelUsage is no longer read; a record without byModel (pre-upgrade) yields no rows.
+    assert.deepEqual(M.modelRows({ modelUsage: { a: { inputTokens: 5 } } }, "2026-09-02"), []);
+    assert.deepEqual(M.modelRows({ recentDays: [{ date: "2026-09-02", messageCount: 5 }] }, "2026-09-02"), []);
+    assert.deepEqual(M.modelRows({}, "2026-09-02"), []);
+    assert.deepEqual(M.modelRows(null, ""), []);
 });
 
 test("anyLimitHot at the 0.9 boundary", () => {

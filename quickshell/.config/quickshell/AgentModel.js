@@ -90,43 +90,58 @@ function resetText(resetsAt, nowMs) {
     return "Resets in " + formatDuration(t - nowMs);
 }
 
-// Exactly 7 rows ending today, scaled to the week's peak. recentDays'
-// messageCount IS a token total (legacy key name, kept for schema parity).
+// The 7 local dates ending today, oldest first, as {date, label, isToday}.
 // todayStr ("YYYY-MM-DD") anchors the window; "" means the current date.
-function weekRows(record, todayStr) {
-    var byDate = {}, rd = (record && record.recentDays) || [];
-    for (var i = 0; i < rd.length; i++)
-        if (rd[i] && rd[i].date) byDate[rd[i].date] = Number(rd[i].messageCount) || 0;
+function weekDates(todayStr) {
     var names = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
     var base = todayStr ? new Date(todayStr + "T12:00:00") : new Date();
-    var out = [], peak = 1;
+    var out = [];
     for (var back = 6; back >= 0; back--) {
         var day = new Date(base.getTime() - back * 86400000);
         var key = day.getFullYear() + "-" + pad2(day.getMonth() + 1) + "-" + pad2(day.getDate());
-        var tokens = byDate[key] || 0;
-        if (tokens > peak) peak = tokens;
-        out.push({ date: key, label: back === 0 ? "Today" : names[day.getDay()],
-                   tokens: tokens, isToday: back === 0 });
+        out.push({ date: key, label: back === 0 ? "Today" : names[day.getDay()], isToday: back === 0 });
     }
-    for (var j = 0; j < out.length; j++) out[j].ratio = out[j].tokens / peak;
     return out;
 }
 
 function pad2(n) { return (n < 10 ? "0" : "") + n; }
 
-// Top 4 models by total tokens, bar ratios scaled to the heaviest.
-function modelRows(record) {
-    var mu = (record && record.modelUsage) || {}, rows = [];
-    for (var k in mu) {
-        var u = mu[k] || {};
-        var total = (Number(u.inputTokens) || 0) + (Number(u.outputTokens) || 0)
-                  + (Number(u.cacheReadInputTokens) || 0) + (Number(u.cacheCreationInputTokens) || 0);
-        if (total > 0) rows.push({ name: friendlyModelName(k), total: total });
+// Exactly 7 rows ending today, scaled to the week's peak. recentDays'
+// messageCount IS a token total (legacy key name, kept for schema parity).
+function weekRows(record, todayStr) {
+    var byDate = {}, rd = (record && record.recentDays) || [];
+    for (var i = 0; i < rd.length; i++)
+        if (rd[i] && rd[i].date) byDate[rd[i].date] = Number(rd[i].messageCount) || 0;
+    var days = weekDates(todayStr), out = [], peak = 1;
+    for (var d = 0; d < days.length; d++) {
+        var tokens = byDate[days[d].date] || 0;
+        if (tokens > peak) peak = tokens;
+        out.push({ date: days[d].date, label: days[d].label, tokens: tokens, isToday: days[d].isToday });
     }
+    for (var j = 0; j < out.length; j++) out[j].ratio = out[j].tokens / peak;
+    return out;
+}
+
+// Top 4 models by tokens over the same 7 dates weekRows shows, so the list and
+// the graph always agree; recentDays[].byModel is {modelId: tokens} per day
+// (record.modelUsage is all-time and deliberately not read). Ratios scale to
+// the heaviest model.
+function modelRows(record, todayStr) {
+    var byDate = {}, rd = (record && record.recentDays) || [];
+    for (var i = 0; i < rd.length; i++)
+        if (rd[i] && rd[i].date && rd[i].byModel) byDate[rd[i].date] = rd[i].byModel;
+    var days = weekDates(todayStr), totals = {};
+    for (var d = 0; d < days.length; d++) {
+        var bm = byDate[days[d].date] || {};
+        for (var k in bm) totals[k] = (totals[k] || 0) + (Number(bm[k]) || 0);
+    }
+    var rows = [];
+    for (var m in totals)
+        if (totals[m] > 0) rows.push({ name: friendlyModelName(m), total: totals[m] });
     rows.sort(function (a, b) { return b.total - a.total; });
     rows = rows.slice(0, 4);
     var peak = rows.length ? rows[0].total : 1;
-    for (var i = 0; i < rows.length; i++) rows[i].ratio = rows[i].total / peak;
+    for (var j = 0; j < rows.length; j++) rows[j].ratio = rows[j].total / peak;
     return rows;
 }
 
