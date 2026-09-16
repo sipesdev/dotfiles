@@ -11,16 +11,22 @@ if [ -z "$name" ] || [ -z "$url" ]; then
 fi
 case "$url" in http://*|https://*) ;; *) echo "URL must start with http:// or https://"; exit 1;; esac
 
+# These land verbatim in a Desktop Entry and in file names: keep them to characters that
+# cannot start a new key, escape the Exec quoting, or leave the applications directory.
+case "$name" in *[!A-Za-z0-9._\ -]*) echo "Name may contain only letters, digits, space, '.', '_' and '-'"; exit 1;; esac
+case "$url" in *[[:space:]\"\'\\%]*) echo "URL must not contain whitespace, quotes, backslashes or %"; exit 1;; esac
+case "$profile" in *[!A-Za-z0-9\ ]*) echo "ProfileDir may contain only letters, digits and space"; exit 1;; esac
+
 apps="$HOME/.local/share/applications"
 icons="$apps/icons"
 mkdir -p "$icons"
 icon="$icons/${name}.png"
 
 # Icon: explicit URL, else favicon service, else a themed fallback
-if [ -n "$icon_url" ]; then curl -fsSL -o "$icon" "$icon_url" || true; fi
+if [ -n "$icon_url" ]; then curl -fsSL --proto '=https' -o "$icon" "$icon_url" || true; fi
 if [ ! -s "$icon" ]; then
   domain=$(printf '%s' "$url" | sed -E 's#^https?://([^/]+).*#\1#')
-  curl -fsSL -o "$icon" "https://www.google.com/s2/favicons?domain=${domain}&sz=128" || true
+  curl -fsSL --proto '=https' -o "$icon" "https://www.google.com/s2/favicons?domain=${domain}&sz=128" || true
 fi
 [ -s "$icon" ] || icon="applications-internet"
 
@@ -28,7 +34,7 @@ cat > "$apps/${name}.desktop" <<DESKTOP
 [Desktop Entry]
 Name=${name}
 Comment=${name} (web app)
-Exec=brave --profile-directory="${profile}" --app=${url}
+Exec=brave --profile-directory="${profile}" --app="${url}"
 Terminal=false
 Type=Application
 Icon=${icon}
