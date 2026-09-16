@@ -233,6 +233,7 @@ BarDrawer {
             Text {
                 Layout.fillWidth: true
                 text: brow.row.label
+                textFormat: Text.PlainText
                 elide: Text.ElideRight
                 color: brow.row.connected ? Theme.accent : Theme.text
                 font.family: Theme.fontFamily

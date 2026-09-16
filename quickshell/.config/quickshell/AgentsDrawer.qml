@@ -75,6 +75,7 @@ BarDrawer {
                 Text {
                     Layout.fillWidth: true
                     text: modelData.label
+                    textFormat: Text.PlainText
                     elide: Text.ElideRight
                     color: Theme.text
                     font.family: Theme.fontFamily
@@ -122,6 +123,7 @@ BarDrawer {
             Text {
                 Layout.preferredWidth: 44
                 text: modelData.label
+                textFormat: Text.PlainText
                 color: modelData.isToday ? Theme.text : Theme.dim
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.fontSize - 2
@@ -166,6 +168,7 @@ BarDrawer {
         Layout.fillWidth: true
         wrapMode: Text.WordWrap
         text: agents.provider ? AgentModel.statusLine(agents.provider) : ""
+        textFormat: Text.PlainText
         color: Theme.dim
         font.family: Theme.fontFamily
         font.pixelSize: Theme.fontSize - 2

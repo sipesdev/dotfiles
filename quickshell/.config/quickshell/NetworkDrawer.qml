@@ -352,6 +352,7 @@ BarDrawer {
             Text {
                 Layout.fillWidth: true
                 text: wrow.row.ssid
+                textFormat: Text.PlainText
                 elide: Text.ElideRight
                 color: wrow.row.connected ? Theme.accent : Theme.text
                 font.family: Theme.fontFamily
