@@ -40,7 +40,7 @@ prompt=$(
   cat <<PROMPT
 A process crashed on this machine and I want to know why.
 
-Established from the core file systemd-coredump wrote (trustworthy):
+Taken from the core file's name (only root writes there; the name itself is the process's own 15-byte comm):
   process:  $name
   PID:      $pid
   signal:   $signal
