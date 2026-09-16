@@ -44,6 +44,19 @@ class CoreIdentity(unittest.TestCase):
     def test_rejects_missing_field_marker(self):
         self.assertEqual(core_identity("-")[0], 1)
 
+    def test_rejects_comm_that_decodes_to_separators(self):
+        # comm is the process's own choice; a space or newline smuggled through the
+        # \xHH escaping would re-split "<comm> <uid> <pid>" for the caller.
+        self.assertEqual(core_identity(f"{CORE_DIR}/core.x\\x201000\\x209999.1001.{BOOT}.4242.1.zst")[0], 1)
+        self.assertEqual(core_identity(f"{CORE_DIR}/core.x\\x0ay.1000.{BOOT}.4242.1.zst")[0], 1)
+
+    def test_rejects_control_bytes_in_comm(self):
+        self.assertEqual(core_identity(f"{CORE_DIR}/core.a\\x1b[31m.1000.{BOOT}.4242.1.zst")[0], 1)
+
+    def test_keeps_printable_escapes(self):
+        self.assertEqual(core_identity(f"{CORE_DIR}/core.a\\x2fb.1000.{BOOT}.4242.1.zst"),
+                         (0, "a/b 1000 4242\n"))
+
 
 if __name__ == "__main__":
     unittest.main()

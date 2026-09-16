@@ -17,8 +17,11 @@
 # forger cannot do is create a file in /var/lib/systemd/coredump, a root-owned
 # directory. So an entry is believed only when it names an existing root-owned
 # core there whose file name agrees with the entry's PID, and the program name
-# comes from that file name, never from the entry. The click hands agent-crash
-# only what came from the file name (name, pid) plus a shape-checked signal.
+# comes from that file name, never from the entry. A core older than five
+# minutes is not believed either: the directory is world-listable, so a stale
+# core's name could be replayed by an entry that names its PID. The click hands
+# agent-crash only what came from the file name (name, pid) plus a
+# shape-checked signal.
 
 set -uo pipefail
 
@@ -41,7 +44,8 @@ declare -A last_notified
 #   core.<comm>.<uid>.<boot-id>.<pid>.<timestamp-usec>[.zst|.lz4|.xz]
 # with comm escaped (\x2e for '.', \x20 for ' ', ...), so the name has exactly
 # these dot-separated fields and printf %b undoes the escapes. comm is the
-# kernel's 15-character name, so the toast may show a truncated one; the
+# kernel's 15-character name (the process's own choice, so it is decoded and
+# then gated to visible characters); the toast may show a truncated one; the
 # untruncated path is the entry's to forge. Only the name is parsed here; the
 # caller checks that the file exists and is root-owned.
 core_identity() {
@@ -49,7 +53,13 @@ core_identity() {
   [[ ${1%/*} == "$CORE_DIR" && $base == core.* ]] || return 1
   IFS=. read -r head comm uid boot pid rest <<<"$base"
   [[ -n $comm && $uid =~ ^[0-9]+$ && $boot =~ ^[0-9a-f]{32}$ && $pid =~ ^[0-9]+$ ]] || return 1
-  printf '%b %s %s\n' "$comm" "$uid" "$pid"
+  # comm is the crashed process's own 15-byte name; decode the \xHH escapes, then
+  # refuse anything that is not a run of visible characters so the decoded name
+  # can never carry a separator or a terminal control byte into the caller's
+  # "<comm> <uid> <pid>" line, the toast, or the prompt.
+  comm=$(printf '%b' "$comm")
+  [[ $comm =~ ^[[:graph:]]+$ ]] || return 1
+  printf '%s %s %s\n' "$comm" "$uid" "$pid"
 }
 
 # Quickshell owns org.freedesktop.Notifications, so a quickshell crash takes
@@ -97,8 +107,15 @@ main() {
       [[ $pid =~ ^[0-9]+$ ]] || continue
 
       # The core file is the one thing the entry cannot forge (trust model
-      # above): it must exist under CORE_DIR, be root-owned, and name this PID.
-      [[ -f $file && $(stat -c %u -- "$file" 2>/dev/null) == 0 ]] || continue
+      # above): it must exist under CORE_DIR, be root-owned, be fresh, and name
+      # this PID.
+      [[ -f $file ]] || continue
+      read -r owner mtime < <(stat -c '%u %Y' -- "$file" 2>/dev/null) || continue
+      [[ $owner == 0 ]] || continue
+      # The directory is world-listable, so an old core's name is public: an entry
+      # could point at one to summon the toast without any crash. This stream is
+      # live (-f -n 0), so a genuine entry's core was written moments ago.
+      (( EPOCHSECONDS - mtime < 300 )) || continue
       read -r name crash_uid core_pid < <(core_identity "$file") || continue
       [[ $core_pid == "$pid" ]] || continue
 
