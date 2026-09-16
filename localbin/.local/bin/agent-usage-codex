@@ -26,6 +26,7 @@ Limits:       `codex app-server` over stdio JSON-RPC (account/read,
 """
 
 import json
+import math
 import os
 import select
 import shutil
@@ -91,7 +92,11 @@ def local_day(ts):
 
 
 def number(value):
-    if isinstance(value, (int, float)) and not isinstance(value, bool):
+    if isinstance(value, bool):
+        return 0
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float) and math.isfinite(value):   # json accepts NaN/Infinity; int() would raise
         return int(value)
     return 0
 
