@@ -5,11 +5,28 @@
 # systemd-coredump journals every core dump under a fixed MESSAGE_ID with
 # structured COREDUMP_* fields; follow that stream rather than polling
 # coredumpctl. Run by the crash-watch.service user unit.
+#
+# Trust model. MESSAGE_ID and the COREDUMP_* fields are ordinary journal
+# fields: any process that can write /run/systemd/journal/socket (mode 666, so
+# every process on the box) can post an entry carrying them, with any UID, COMM
+# or EXE it likes and no crash at all. Only the fields journald stamps itself
+# (the _-prefixed ones) are trustworthy, and the ones that would identify the
+# sender (_COMM, _EXE, _SYSTEMD_UNIT) are missing from about half of the real
+# systemd-coredump entries on this machine -- journald reads them from /proc
+# after the fact and the coredump handler has usually exited by then. What a
+# forger cannot do is create a file in /var/lib/systemd/coredump, a root-owned
+# directory. So an entry is believed only when it names an existing root-owned
+# core there whose file name agrees with the entry's PID, and the program name
+# comes from that file name, never from the entry. The click hands agent-crash
+# only what came from the file name (name, pid) plus a shape-checked signal.
 
 set -uo pipefail
 
 # See systemd.journal-fields(7).
 readonly COREDUMP_MESSAGE_ID=fc2e22bc6ee647b6b90729ab34a250b1
+
+# Where systemd-coredump writes cores (coredump.conf Storage=external, the default).
+readonly CORE_DIR=${CRASH_CORE_DIR:-/var/lib/systemd/coredump}
 
 # Crash loops dump core repeatedly; announce each program at most once a window.
 readonly dedupe_seconds=${CRASH_DEDUPE_SECONDS:-60}
@@ -18,6 +35,22 @@ readonly dedupe_seconds=${CRASH_DEDUPE_SECONDS:-60}
 readonly ignore_pattern=${CRASH_IGNORE:-}
 
 declare -A last_notified
+
+# core_identity <path> -- print "<comm> <uid> <pid>" parsed from a systemd-coredump
+# core file name, or fail. Cores are named
+#   core.<comm>.<uid>.<boot-id>.<pid>.<timestamp-usec>[.zst|.lz4|.xz]
+# with comm escaped (\x2e for '.', \x20 for ' ', ...), so the name has exactly
+# these dot-separated fields and printf %b undoes the escapes. comm is the
+# kernel's 15-character name, so the toast may show a truncated one; the
+# untruncated path is the entry's to forge. Only the name is parsed here; the
+# caller checks that the file exists and is root-owned.
+core_identity() {
+  local base=${1##*/} head comm uid boot pid rest
+  [[ ${1%/*} == "$CORE_DIR" && $base == core.* ]] || return 1
+  IFS=. read -r head comm uid boot pid rest <<<"$base"
+  [[ -n $comm && $uid =~ ^[0-9]+$ && $boot =~ ^[0-9a-f]{32}$ && $pid =~ ^[0-9]+$ ]] || return 1
+  printf '%b %s %s\n' "$comm" "$uid" "$pid"
+}
 
 # Quickshell owns org.freedesktop.Notifications, so a quickshell crash takes
 # the notification server down with it -- and that is exactly the crash most
@@ -41,51 +74,54 @@ notification_wait() {
 # toast is pending, the waiting notify-send exits actionless and that click is
 # lost; `agent-crash <pid>` by hand (see coredumpctl list) is the recovery.
 announce() {
-  local name=$1 pid=$2 exe=$3 signal=$4
+  local name=$1 pid=$2 signal=$3
   (
     notification_wait || exit 0
     action=$(notify-send --urgency=critical --app-name=crash-watch \
       -A default=Diagnose "Process crashed: $name" "Click to diagnose with AI")
     [[ $action == default ]] &&
-      exec setsid "$HOME/.local/bin/agent-crash" "$pid" "$name" "$exe" "$signal"
+      exec setsid "$HOME/.local/bin/agent-crash" "$pid" "$name" "$signal"
   ) &
 }
 
-# -n 0 so a service restart does not re-announce crashes already dealt with.
-journalctl -f -n 0 -o json "MESSAGE_ID=$COREDUMP_MESSAGE_ID" 2>/dev/null |
-  while IFS= read -r entry; do
-    IFS=$'\t' read -r crash_uid comm pid exe signal < <(
-      jq -r '[(.COREDUMP_UID // "-"),
-              (.COREDUMP_COMM // "-"),
-              (.COREDUMP_PID // "-"),
-              (.COREDUMP_EXE // "-"),
-              (.COREDUMP_SIGNAL_NAME // "-")] | @tsv' <<<"$entry" 2>/dev/null
-    )
+main() {
+  # -n 0 so a service restart does not re-announce crashes already dealt with.
+  journalctl -f -n 0 -o json "MESSAGE_ID=$COREDUMP_MESSAGE_ID" 2>/dev/null |
+    while IFS= read -r entry; do
+      IFS=$'\t' read -r pid file signal < <(
+        jq -r '[(.COREDUMP_PID // "-"),
+                (.COREDUMP_FILENAME // "-"),
+                (.COREDUMP_SIGNAL_NAME // "-")] | @tsv' <<<"$entry" 2>/dev/null
+      )
 
-    [[ $pid =~ ^[0-9]+$ ]] || continue
+      [[ $pid =~ ^[0-9]+$ ]] || continue
 
-    # Only this user's crashes; a daemon dumping core is a sysadmin's problem.
-    # COREDUMP_UID is the crashing process's owner. _UID would be the uid of the
-    # systemd-coredump handler that wrote the entry -- 979 (systemd-coredump) for
-    # a root crash, not 0 -- so matching on it compares against the wrong process.
-    [[ $crash_uid =~ ^[0-9]+$ ]] || continue
-    ((crash_uid == UID)) || continue
+      # The core file is the one thing the entry cannot forge (trust model
+      # above): it must exist under CORE_DIR, be root-owned, and name this PID.
+      [[ -f $file && $(stat -c %u -- "$file" 2>/dev/null) == 0 ]] || continue
+      read -r name crash_uid core_pid < <(core_identity "$file") || continue
+      [[ $core_pid == "$pid" ]] || continue
 
-    # comm is truncated to 15 characters, so prefer the executable's basename.
-    name=$comm
-    [[ $exe == /* ]] && name=${exe##*/}
+      # Only this user's crashes; a daemon dumping core is a sysadmin's problem.
+      ((crash_uid == UID)) || continue
 
-    [[ -n $ignore_pattern && $name =~ $ignore_pattern ]] && continue
+      [[ $signal =~ ^SIG[A-Z0-9]{1,12}$ ]] || signal=unknown
 
-    # Never announce our own machinery, or it notifies about itself.
-    [[ $name == crash-watch* || $name == agent-* || $name == agent ]] && continue
+      [[ -n $ignore_pattern && $name =~ $ignore_pattern ]] && continue
 
-    now=$EPOCHSECONDS
-    (((now - ${last_notified[$name]:-0}) < dedupe_seconds)) && continue
+      # Never announce our own machinery, or it notifies about itself.
+      [[ $name == crash-watch* || $name == agent-* || $name == agent ]] && continue
 
-    # Delivery is async (the subshell may still be waiting on the notification
-    # server), so unlike Omarchy the dedupe window starts at launch, not at
-    # confirmed delivery. A crash loop during a shell outage self-dedupes anyway.
-    announce "$name" "$pid" "$exe" "$signal"
-    last_notified[$name]=$now
-  done
+      now=$EPOCHSECONDS
+      (((now - ${last_notified[$name]:-0}) < dedupe_seconds)) && continue
+
+      # Delivery is async (the subshell may still be waiting on the notification
+      # server), so unlike Omarchy the dedupe window starts at launch, not at
+      # confirmed delivery. A crash loop during a shell outage self-dedupes anyway.
+      announce "$name" "$pid" "$signal"
+      last_notified[$name]=$now
+    done
+}
+
+# Sourced by tests/agents/test_crash_watch.py for core_identity; run only as a program.
+[[ ${BASH_SOURCE[0]} == "$0" ]] && main

@@ -3,6 +3,11 @@ Description=Announce process crashes and offer an AI diagnosis
 After=graphical-session.target
 PartOf=graphical-session.target
 ConditionEnvironment=WAYLAND_DISPLAY
+# Restart=always with RestartSec=5 sits under systemd's default 5-in-10s rate limit, so a
+# permanently failing watcher would respawn forever. Five starts in two minutes is a loop:
+# stop and show up as failed instead.
+StartLimitIntervalSec=120
+StartLimitBurst=5
 
 [Service]
 Type=simple
