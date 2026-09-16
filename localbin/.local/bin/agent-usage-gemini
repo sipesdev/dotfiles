@@ -35,8 +35,6 @@ from pathlib import Path
 SCHEMA_VERSION = 1
 PROBE_FLOOR_SECONDS = 15
 QUOTA_URL = "https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuota"
-# Token fields parse_message reads; tests feed each one.
-TOKEN_KEYS = ("inputTokens", "outputTokens", "cacheReadInputTokens")
 
 
 def data_dir():

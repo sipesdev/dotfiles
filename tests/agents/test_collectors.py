@@ -333,7 +333,8 @@ class FiniteTokens(unittest.TestCase):
                                     "tokens": {k: float("inf")
                                                for k in ("input", "output", "thoughts", "tool", "cached")}})
         self.assertIsNotNone(out)
-        for k in gemini.TOKEN_KEYS:
+        # the output keys parse_message produces through n()
+        for k in ("inputTokens", "outputTokens", "cacheReadInputTokens"):
             self.assertEqual(out[k], 0)
 
 
