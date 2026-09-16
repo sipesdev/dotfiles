@@ -166,10 +166,12 @@ Singleton {
     // which bt-agent catches and does not exit on, so it would outlive the drawer -- orphaned,
     // untracked and still auto-accepting, one more per open. SIGINT is what it quits on, and
     // `running` stays true until the process is really gone, so this only fires on a live agent.
+    // processId is null until the child exists; Process.signal is a bare kill(pid), and kill(0)
+    // would reach the whole quickshell process group.
     Connections {
         target: sys
         function onBtWantsDiscoveryChanged() {
-            if (!sys.btWantsDiscovery && btAgent.running) btAgent.signal(2);   // SIGINT
+            if (!sys.btWantsDiscovery && btAgent.running && btAgent.processId) btAgent.signal(2);   // SIGINT
         }
     }
 
