@@ -28,10 +28,7 @@ hl.on("hyprland.start", function()
     -- PolicyKit authentication agent (GNOME)
     hl.exec_cmd("/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1")
 
-    -- Bluetooth pairing agent (bluez-tools). Quickshell's Bluetooth module talks
-    -- to BlueZ but registers no Agent1, so pairing new devices from the quick
-    -- settings menu needs an external agent. NoInputNoOutput = just-works auto-accept.
-    hl.exec_cmd("bt-agent --capability=NoInputNoOutput")
+    -- Bluetooth pairing agent: Sys.qml runs bt-agent only while a Bluetooth drawer is open.
 
     -- Clipboard history daemon (cliphist)
     hl.exec_cmd("wl-paste --type text  --watch cliphist store")
