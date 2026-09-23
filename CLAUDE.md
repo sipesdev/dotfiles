@@ -93,6 +93,13 @@ classic hyprlang forms like `hyprctl dispatch dpms off` fail to parse on this bu
   layout changes; a window rule would freeze that size at map time, so don't reach for one.
 - `SUPER+SHIFT+A` runs `~/.local/bin/agent`, whose terminal (class `agent-tui`) the `float-agent-tui` rule
   floats and centers at 60% x 60% — a different class from the console precisely so it is not floated.
+- **eDP-1 is off while docked.** `uwsm/env` exports `EGPU_PRESENT` + `EGPU_DISPLAYS` (from
+  `egpu-drm-devices`) at login and `modules/monitors.lua` turns both into a `disabled` rule on eDP-1:
+  the panel is never enabled and never part of a dpms cycle — the cross-GPU blit aquamarine#324
+  wedges. Lock-out guard: docked with nothing plugged into the eGPU keeps the panel on. To keep it
+  anyway, set `EGPU_DISPLAYS=0` in `uwsm/env` and re-login; **never re-enable eDP-1 live** in a docked
+  session on aquamarine 0.14.0. `egpu-dpms-guard` now skips dpms-off only while docked with the panel
+  still enabled.
 
 **Reload:** `hyprctl reload`.
 
@@ -173,13 +180,6 @@ polls the bus name's owner while it waits, kills the stranded waiter when a new 
 name, and shows the toast again on the new server (ten rounds at most). `agent-crash <pid>` by hand
 against the PID in `coredumpctl list` remains the fallback.
 
-## Helper scripts (`localbin/`)
-- `backlight` — the only writer of the panel backlight: `get` / `set N` (linear, 0-100 of the safe
-  range; the Display drawer), `up` / `down` (the brightness keys; exponential steps as before),
-  `set-exp N` (autobrightness). Caps at 98% of `max_brightness` because `amdgpu_bl1` goes dark
-  (`actual_brightness` 0) from raw ~64880 up; "100" is the brightest the panel actually reaches.
-- `bluetooth-power` — `on` / `off` via `rfkill unblock|block bluetooth` (BlueZ's Powered is not persisted;
-  the block is). `on` waits for `Powered: yes`, falling back to `bluetoothctl power on`. Explicit
 ## Emacs (`doom/`, `systemd/`) — Doom Emacs on a per-session daemon
 `emacs-wayland` (pgtk, native-comp) running **Doom Emacs**. The framework is an **untracked** shallow clone
 of `doomemacs/core` at `~/.config/emacs` (its `doom` CLI is on PATH via `.zshrc`/`.bashrc`); only the
@@ -220,10 +220,21 @@ rename), but edit at the repo path anyway and run `stow-doctor` if a link looks 
   magit. Chosen over neotree (2026-09-08): twice the users, active upstream, incremental redraws and async git
   status on large trees. A changed module list needs a daemon restart; `M-x doom/reload` does not reload it.
 
+## Helper scripts (`localbin/`)
+- `backlight` — the only writer of the panel backlight: `get` / `set N` (linear, 0-100 of the safe
+  range; the Display drawer), `up` / `down` (the brightness keys; exponential steps as before),
+  `set-exp N` (autobrightness). Caps at 98% of `max_brightness` because `amdgpu_bl1` goes dark
+  (`actual_brightness` 0) from raw ~64880 up; "100" is the brightest the panel actually reaches.
+- `bluetooth-power` — `on` / `off` via `rfkill unblock|block bluetooth` (BlueZ's Powered is not persisted;
+  the block is). `on` waits for `Powered: yes`, falling back to `bluetoothctl power on`. Explicit
   direction only.
 - `autobrightness` — ALS-driven backlight. Does a one-shot read of `/sys/.../in_illuminance_raw` at start
   (because `monitor-sensor` only emits on change), then streams. Started/stopped by `Sys.autoBrightness`.
   Applies levels via `backlight set-exp`.
+- `egpu-drm-devices` — emits `AQ_DRM_DEVICES` (NVIDIA first when docked); `--present` = the NVIDIA
+  eGPU is on the PCI bus, `--displays` = a monitor is attached to it. Both are exported by `uwsm/env`.
+- `egpu-dpms-guard` — hypridle's dpms-off gate: skips the off only while docked with eDP-1 still
+  enabled (the aquamarine#324 wedge), otherwise the dpms-off runs.
 - `archwiki` — searches/renders the offline Arch Wiki (`arch-wiki-docs` package, mirror under
   `/usr/share/doc/arch-wiki/html/en`). `archwiki <query>` searches, `-t` titles only, `-r` renders an
   article to plain text via `python` (no lynx/w3m/pandoc on this box).

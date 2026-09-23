@@ -1,6 +1,15 @@
 # Alacritty — matte black
 # (Shift+Return binding preserved exactly from your original.)
 
+# Ctrl+Backspace -> Ctrl+W (word-delete) in every app and mode. Alacritty applies
+# bindings before Kitty-protocol encoding, so this also works inside herdr,
+# whose client enables the Kitty keyboard protocol and would otherwise deliver a
+# bare ^H that Claude Code treats as a single-character backspace.
+[[keyboard.bindings]]
+key = "Back"
+mods = "Control"
+chars = "\u0017"
+
 [[keyboard.bindings]]
 key = "Return"
 mods = "Shift"

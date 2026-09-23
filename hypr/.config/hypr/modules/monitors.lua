@@ -5,11 +5,29 @@
 --        change to 2 (fullscreen only).
 --   icc profile: ~/.local/share/icc/BOE_NE160QDM_NZ6.icm (notebookcheck calibration).
 -- See: https://wiki.hypr.land/Configuring/Basics/Monitors/
+--
+-- Docked with a monitor on the eGPU (EGPU_PRESENT=1 and EGPU_DISPLAYS=1, both
+-- exported by ~/.config/uwsm/env at login), eDP-1 is DISABLED for the whole
+-- session: every panel frame would otherwise be rendered on the NVIDIA card and
+-- blitted over OCuLink to the AMD iGPU, and a dpms cycle on that path wedges the
+-- panel (the aquamarine#324 topology -- see egpu-dpms-guard). Disabled from its
+-- first commit, the AMD secondary renderer is never initialised and dpms never
+-- touches the panel. Undocked -- or docked with nothing plugged into the eGPU --
+-- the rule is enabled and nothing changes.
+--
+-- Do NOT re-enable eDP-1 live in a docked session: that is exactly the re-light
+-- path aquamarine 0.14.0 breaks. To keep the panel while docked, set
+-- EGPU_DISPLAYS=0 in ~/.config/uwsm/env and re-login.
+--
+-- Positions are unchanged: DP-11 at 1600x0 and DP-9 at 3520x0 are explicit, so
+-- the empty 0..1600 strip left while the panel is off is harmless.
 
 local home = os.getenv("HOME")
+local panel_off = os.getenv("EGPU_PRESENT") == "1" and os.getenv("EGPU_DISPLAYS") == "1"
 
 hl.monitor({
     output   = "eDP-1",
+    disabled = panel_off,       -- docked with a display on the eGPU -> off
     mode     = "2560x1600@165",
     position = "0x0",           -- far left; anchors the external layout
     scale    = "auto",
@@ -58,7 +76,10 @@ hl.monitor({
 -- monitor is focused (default Hyprland behaviour).
 --   WS1 -> DP-11 (high-refresh gaming panel — primary)
 --   WS2 -> DP-9  (second external)
---   WS3 -> eDP-1 (laptop panel)
+--   WS3 -> eDP-1 (laptop panel), bound only while the panel is on; with eDP-1
+--          disabled (docked) WS3 opens on the focused monitor, like 4-10
 hl.workspace_rule({ workspace = "1", monitor = "DP-11", default = true })
 hl.workspace_rule({ workspace = "2", monitor = "DP-9",  default = true })
-hl.workspace_rule({ workspace = "3", monitor = "eDP-1", default = true })
+if not panel_off then
+    hl.workspace_rule({ workspace = "3", monitor = "eDP-1", default = true })
+end

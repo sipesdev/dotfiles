@@ -1,5 +1,5 @@
 #!/bin/sh
-# egpu-dpms-guard -- gate hypridle's idle dpms-off on eGPU presence.
+# egpu-dpms-guard -- gate hypridle's idle dpms-off on the wedge-prone case.
 #
 # Docked, the NVIDIA eGPU is the primary renderer and the AMD iGPU's only job
 # is scanning out eDP-1. A dpms-off then leaves the AMD card with no enabled
@@ -9,13 +9,26 @@
 # nothing short of a compositor restart recovers it -- not a per-monitor dpms
 # cycle, force_renderer_reload, disable/re-enable, a VT switch, or a scale
 # change (aquamarine#324; fix merged in aquamarine#316, unreleased as of
-# 0.14.0). So while docked we skip dpms-off: the displays stay lit while
-# locked and the eGPU keeps rendering them -- an accepted cost until a fixed
-# aquamarine release ships. Undocked (AMD-only, on battery) dpms is unaffected
-# and proceeds as before.
+# 0.14.0).
+#
+# A normal docked session no longer reaches that path: modules/monitors.lua
+# disables eDP-1 for the whole session whenever a monitor is attached to the
+# eGPU, so the AMD card never has an output to lose, a dpms cycle only touches
+# the NVIDIA outputs, and the off proceeds -- the externals do turn off while
+# locked. The guard skips dpms-off in exactly one configuration: docked with
+# eDP-1 still enabled (an EGPU_DISPLAYS=0 override in ~/.config/uwsm/env, or a
+# session from before that env existed), where the cycle would wedge the panel
+# -- and with nothing plugged into the eGPU that panel is the only display.
+# Undocked (AMD-only, on battery) dpms is unaffected and proceeds as before.
 #
 # Wired from hypridle.conf's dpms listener. Once the fix lands in a release,
 # restore the plain dpms-off there and retire this script -- after verifying
 # on the bench: dpms off, wait 20s, dpms on; eDP-1 must relight with content.
-[ "$("$HOME/.local/bin/egpu-drm-devices" --present)" = 1 ] && exit 0
+#
+# `hyprctl -j monitors` lists ENABLED monitors only, so the eDP-1 name test is
+# the "panel still enabled" half of the condition.
+if [ "$("$HOME/.local/bin/egpu-drm-devices" --present)" = 1 ] \
+   && hyprctl -j monitors 2>/dev/null | grep -q '"name": "eDP-1"'; then
+    exit 0
+fi
 exec hyprctl dispatch 'hl.dsp.dpms("off")'

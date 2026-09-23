@@ -9,8 +9,9 @@
 # start. Mobile (no eGPU) settles on the internal panel immediately.
 set -u
 
-# Docked (EGPU_PRESENT set by ~/.config/uwsm/env) -> expect the panel plus at
-# least one external output before we consider the set complete.
+# Docked (EGPU_PRESENT set by ~/.config/uwsm/env) -> expect at least two
+# outputs before we consider the set complete: both externals with the panel
+# off, or panel + externals.
 min=1
 [ "${EGPU_PRESENT:-0}" = "1" ] && min=2
 
