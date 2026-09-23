@@ -34,8 +34,14 @@ export DXVK_CONFIG_FILE="$HOME/.config/dxvk/dxvk.conf"
 # displays natively (no cross-GPU copy) and games run on it directly. Resolved
 # fresh each login (cardN numbers aren't stable; by-path names contain ':', the
 # AQ_DRM_DEVICES separator). See ~/.local/bin/egpu-drm-devices.
+#
+# EGPU_DISPLAYS is 1 when a monitor is actually attached to the eGPU; together
+# with EGPU_PRESENT it makes modules/monitors.lua switch the internal panel off
+# for the session. Both are login-phase env, so they take effect at the NEXT
+# login — an already-running session does not have them.
 export AQ_DRM_DEVICES="$("$HOME/.local/bin/egpu-drm-devices")"
 export EGPU_PRESENT="$("$HOME/.local/bin/egpu-drm-devices" --present)"
+export EGPU_DISPLAYS="$("$HOME/.local/bin/egpu-drm-devices" --displays)"
 
 if [ "$EGPU_PRESENT" = "1" ]; then
     # NVIDIA-primary Wayland: route GBM + GLX through the NVIDIA driver. Set only

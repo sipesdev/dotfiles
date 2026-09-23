@@ -22,7 +22,8 @@ hl.on("hyprland.start", function()
 
     -- Block lid-close / suspend-key sleep while the OCuLink eGPU is docked
     -- (s2idle resume drops it off the PCIe bus and crashes the machine). No-op
-    -- when undocked. Pairs with egpu-suspend-guard on hypridle's idle timer.
+    -- when undocked. hypridle has no idle-suspend listener, so this is the only
+    -- sleep path that needs gating.
     hl.exec_cmd(home .. "/.local/bin/egpu-suspend-inhibit")
 
     -- PolicyKit authentication agent (GNOME)

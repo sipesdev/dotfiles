@@ -4,9 +4,10 @@
 # hyprpaper IPC auto-loads the preload; we set the wallpaper on every monitor
 # Hyprland reports. At boot the eGPU (OCuLink) DisplayPort outputs register a
 # beat after the internal panel, so with no args we first wait for the monitor
-# set to settle (docked = panel + >=1 external, via EGPU_PRESENT), then set
-# each -- adapting to docked/mobile with no reconfiguration. Explicit monitor
-# args skip the wait and target just those outputs.
+# set to settle (docked = at least two outputs, via EGPU_PRESENT: both
+# externals with the panel off, or panel + externals), then set each --
+# adapting to docked/mobile with no reconfiguration. Explicit monitor args
+# skip the wait and target just those outputs.
 set -u
 wp="$HOME/.config/hypr/wallpapers/1-dark-waters.jpg"
 
