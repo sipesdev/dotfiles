@@ -37,6 +37,10 @@ readonly dedupe_seconds=${CRASH_DEDUPE_SECONDS:-60}
 # Extended regex of process names never worth announcing.
 readonly ignore_pattern=${CRASH_IGNORE:-}
 
+# How often a pending toast checks that the server it was shown on is still the one
+# owning the bus name (see toast).
+readonly owner_poll_seconds=${CRASH_OWNER_POLL_SECONDS:-3}
+
 declare -A last_notified
 
 # core_identity <path> -- print "<comm> <uid> <pid>" parsed from a systemd-coredump
@@ -76,21 +80,65 @@ notification_wait() {
   return 1
 }
 
+# The unique bus name that owns org.freedesktop.Notifications right now, or fail.
+notification_owner() {
+  busctl --user call org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DBus \
+    GetNameOwner s org.freedesktop.Notifications 2>/dev/null
+}
+
+# toast <owner> <notify-send args...> -- show the toast and print the action it
+# ends with. -A implies --wait, and libnotify returns only when the server
+# reports the toast closed or clicked; a server that exits reports nothing, so
+# the waiter would sit for good while the toast it is waiting on is gone with
+# the server. Poll the name's owner while waiting (wait -n over the waiter and a
+# sleeper, so a click is acted on at once): when a different connection holds
+# the name, kill the waiter and return 2 so the caller can announce again.
+toast() {
+  local owner=$1 waiter sleeper finished= status
+  shift
+  notify-send "$@" &
+  waiter=$!
+  while :; do
+    sleep "$owner_poll_seconds" &
+    sleeper=$!
+    wait -n -p finished "$waiter" "$sleeper"
+    status=$?
+    if [[ $finished == "$waiter" ]]; then
+      kill "$sleeper" 2>/dev/null
+      return "$status"
+    fi
+    [[ $(notification_owner) == "$owner" ]] && continue
+    kill "$waiter" 2>/dev/null
+    wait "$waiter" 2>/dev/null
+    return 2
+  done
+}
+
 # One background subshell per crash: -A implies --wait, so notify-send blocks
 # until the toast is clicked (prints "default") or dismissed (prints nothing).
 # Critical urgency is exempt from Notifs.qml's 8s cap, so the toast holds until
 # acted on. Crash details ride as discrete argv words -- never re-parsed, so a
-# hostile process name cannot become a command. If quickshell restarts while a
-# toast is pending, the waiting notify-send exits actionless and that click is
-# lost; `agent-crash <pid>` by hand (see coredumpctl list) is the recovery.
+# hostile process name cannot become a command. A shell restart takes the toast
+# with it and leaves notify-send waiting on nothing (toast above), so the toast
+# is shown again on the new server, a bounded number of times: a shell stuck in
+# a restart loop must not keep this subshell alive forever.
 announce() {
   local name=$1 pid=$2 signal=$3
   (
-    notification_wait || exit 0
-    action=$(notify-send --urgency=critical --app-name=crash-watch \
-      -A default=Diagnose "Process crashed: $name" "Click to diagnose with AI")
-    [[ $action == default ]] &&
-      exec setsid "$HOME/.local/bin/agent-crash" "$pid" "$name" "$signal"
+    local owner action attempt
+    for ((attempt = 0; attempt < 10; attempt++)); do
+      notification_wait || exit 0
+      owner=$(notification_owner) || continue
+      action=$(toast "$owner" --urgency=critical --app-name=crash-watch \
+        -A default=Diagnose "Process crashed: $name" "Click to diagnose with AI")
+      case $? in
+        2) continue ;;
+        0) [[ $action == default ]] &&
+             exec setsid "$HOME/.local/bin/agent-crash" "$pid" "$name" "$signal"
+           exit 0 ;;
+        *) exit 0 ;;
+      esac
+    done
   ) &
 }
 
@@ -140,5 +188,5 @@ main() {
     done
 }
 
-# Sourced by tests/agents/test_crash_watch.py for core_identity; run only as a program.
+# Sourced by tests/agents/test_crash_watch.py for core_identity and announce; run only as a program.
 [[ ${BASH_SOURCE[0]} == "$0" ]] && main

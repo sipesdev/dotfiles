@@ -167,9 +167,11 @@ unowned bus.
 Quickshell is therefore the only notification daemon on the box, and there is deliberately no fallback: if
 it fails to load, notifications are down until it loads again. That is what makes a config error under
 `quickshell/` more expensive than it looks — restart it and check the log (above) after any QML edit.
-A restart also drops any *pending* crash toast: `crash-watch`'s `notify-send` is blocked waiting for the
-click and exits actionless when the server goes away. Accepted failure mode; the recovery is to run
-`agent-crash <pid>` by hand against the PID in `coredumpctl list`.
+A restart no longer loses a *pending* crash toast: `crash-watch`'s `notify-send` is blocked waiting for
+the click and libnotify never returns once the server that showed the toast is gone, so `crash-watch`
+polls the bus name's owner while it waits, kills the stranded waiter when a new connection holds the
+name, and shows the toast again on the new server (ten rounds at most). `agent-crash <pid>` by hand
+against the PID in `coredumpctl list` remains the fallback.
 
 ## Helper scripts (`localbin/`)
 - `backlight` — the only writer of the panel backlight: `get` / `set N` (linear, 0-100 of the safe
@@ -242,7 +244,8 @@ rename), but edit at the repo path anyway and run `stow-doctor` if a link looks 
   `COREDUMP_*` fields themselves are forgeable by any local process via the 666 journal socket), takes the
   program name from that file name, and raises one sticky critical toast per program per 60 s for *this
   user's* crashes; clicking it runs `agent-crash`. Waits for the notification bus first, so a quickshell
-  crash still announces itself once the shell is back.
+  crash still announces itself once the shell is back, and shows a pending toast again on the new server
+  when the shell restarts under it.
 - `agent-usage-update` + `agent-usage-{claude,codex,gemini}` — usage records for the agents pill/drawer, one
   JSON file per agent at `~/.local/state/agents/usage/<id>.json` (written atomically; `--force` bypasses the
   scan and probe caches, `--limits-only` is accepted for CLI parity but the incremental transcript scan is
