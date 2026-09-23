@@ -94,7 +94,7 @@ notification_owner() {
 # sleeper, so a click is acted on at once): when a different connection holds
 # the name, kill the waiter and return 2 so the caller can announce again.
 toast() {
-  local owner=$1 waiter sleeper finished= status
+  local owner=$1 waiter sleeper finished= status current
   shift
   notify-send "$@" &
   waiter=$!
@@ -107,7 +107,10 @@ toast() {
       kill "$sleeper" 2>/dev/null
       return "$status"
     fi
-    [[ $(notification_owner) == "$owner" ]] && continue
+    # A failed lookup (busctl error, or the name unowned between servers) is not a
+    # change of owner: keep waiting until a different connection answers.
+    current=$(notification_owner) || continue
+    [[ $current == "$owner" ]] && continue
     kill "$waiter" 2>/dev/null
     wait "$waiter" 2>/dev/null
     return 2
@@ -125,26 +128,39 @@ toast() {
 announce() {
   local name=$1 pid=$2 signal=$3
   (
-    local owner action attempt
+    local owner action attempt status
+    echo "crash-watch: announcing $name (pid $pid, $signal)" >&2
     for ((attempt = 0; attempt < 10; attempt++)); do
-      notification_wait || exit 0
-      owner=$(notification_owner) || continue
+      notification_wait || {
+        echo "crash-watch: no notification server after 60 s; toast for $name (pid $pid) lost" >&2
+        exit 0
+      }
+      # The name can be owned (GetServerInformation answered) and the lookup still fail;
+      # give it a moment rather than burning all ten rounds in under a second.
+      owner=$(notification_owner) || { sleep 2; continue; }
       action=$(toast "$owner" --urgency=critical --app-name=crash-watch \
         -A default=Diagnose "Process crashed: $name" "Click to diagnose with AI")
-      case $? in
-        2) continue ;;
-        0) [[ $action == default ]] &&
+      status=$?
+      case $status in
+        2) echo "crash-watch: notification server replaced; showing $name (pid $pid) again" >&2
+           continue ;;
+        0) if [[ $action == default ]]; then
+             echo "crash-watch: $name (pid $pid) toast clicked; launching agent-crash" >&2
              exec setsid "$HOME/.local/bin/agent-crash" "$pid" "$name" "$signal"
+           fi
+           echo "crash-watch: $name (pid $pid) toast dismissed" >&2
            exit 0 ;;
-        *) exit 0 ;;
+        *) echo "crash-watch: notify-send exited $status for $name (pid $pid)" >&2
+           exit 0 ;;
       esac
     done
+    echo "crash-watch: gave up on $name (pid $pid) after $attempt rounds" >&2
   ) &
 }
 
 main() {
   # -n 0 so a service restart does not re-announce crashes already dealt with.
-  journalctl -f -n 0 -o json "MESSAGE_ID=$COREDUMP_MESSAGE_ID" 2>/dev/null |
+  journalctl -f -n 0 -o json "MESSAGE_ID=$COREDUMP_MESSAGE_ID" |
     while IFS= read -r entry; do
       IFS=$'\t' read -r pid file signal < <(
         jq -r '[(.COREDUMP_PID // "-"),
@@ -153,6 +169,7 @@ main() {
       )
 
       [[ $pid =~ ^[0-9]+$ ]] || continue
+      echo "crash-watch: coredump entry for pid $pid" >&2
 
       # The core file is the one thing the entry cannot forge (trust model
       # above): it must exist under CORE_DIR, be root-owned, be fresh, and name
@@ -178,7 +195,10 @@ main() {
       [[ $name == crash-watch* || $name == agent-* || $name == agent ]] && continue
 
       now=$EPOCHSECONDS
-      (((now - ${last_notified[$name]:-0}) < dedupe_seconds)) && continue
+      if (((now - ${last_notified[$name]:-0}) < dedupe_seconds)); then
+        echo "crash-watch: $name (pid $pid) crashed again within ${dedupe_seconds}s; not announced" >&2
+        continue
+      fi
 
       # Delivery is async (the subshell may still be waiting on the notification
       # server), so unlike Omarchy the dedupe window starts at launch, not at

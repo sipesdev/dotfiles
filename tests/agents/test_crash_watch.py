@@ -6,9 +6,9 @@ Run: python tests/agents/test_crash_watch.py   (wired into `make test`)
 """
 import os
 import pathlib
+import signal
 import subprocess
 import tempfile
-import time
 import unittest
 
 REPO = pathlib.Path(__file__).resolve().parents[2]
@@ -97,12 +97,24 @@ class Announce(unittest.TestCase):
 
     def announce(self, notify_send_body):
         shim(self.bin / "notify-send", notify_send_body)
-        subprocess.run(["bash", "-c", 'source "$1"; announce sleep 4242 SIGSEGV; wait', "_", str(SCRIPT)],
-                       env=self.env, timeout=20, check=True)
-        deadline = time.monotonic() + 5     # setsid may fork agent-crash past the wait
-        while time.monotonic() < deadline and not self.log.exists():
-            time.sleep(0.05)
+        proc = subprocess.Popen(["bash", "-c", 'source "$1"; announce sleep 4242 SIGSEGV; wait', "_", str(SCRIPT)],
+                                env=self.env, start_new_session=True, stderr=subprocess.DEVNULL)
+        # The whole tree is one process group, so a regression that leaves a shim's waiter hanging
+        # is killed here by group, never by a command-line pattern (which on this machine would
+        # also match the eGPU suspend inhibitor's `sleep infinity`).
+        self.addCleanup(self.kill_group, proc)
+        proc.wait(timeout=20)
+        self.assertEqual(proc.returncode, 0)
+        # setsid does not fork here (the announcing subshell is never a group leader), so
+        # agent-crash has written its line by the time `wait` returns.
         return self.log.read_text().splitlines() if self.log.exists() else []
+
+    @staticmethod
+    def kill_group(proc):
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
 
     def test_dismissed_toast_ends_the_announcement(self):
         lines = self.announce(f"#!/bin/bash\necho \"notify-send $*\" >> '{self.log}'\n")
@@ -125,6 +137,26 @@ class Announce(unittest.TestCase):
             "fi\n")
         self.assertEqual(len(lines), 2)
         self.assertTrue(all(line.startswith("notify-send") for line in lines))
+
+    def test_owner_lookup_failure_does_not_kill_the_waiter(self):
+        # busctl can fail transiently while the server is alive. An empty answer must not read
+        # as "the owner changed": that kills a live waiter and re-sends the toast on the same
+        # server, leaving a dead card behind. Calls 2 and 3 fail; the toast must ride it out.
+        calls = pathlib.Path(self.tmp.name) / "calls"
+        shim(self.bin / "busctl",
+             "#!/bin/bash\n"
+             'case "$*" in\n'
+             "  *GetServerInformation*) exit 0 ;;\n"
+             "  *GetNameOwner*)\n"
+             f"    n=$(( $(cat '{calls}' 2>/dev/null || echo 0) + 1 )); echo $n > '{calls}'\n"
+             "    [[ $n == 2 || $n == 3 ]] && exit 1\n"
+             f"    cat '{self.owner}' ;;\n"
+             "  *) exit 1 ;;\n"
+             "esac\n")
+        lines = self.announce(f"#!/bin/bash\necho \"notify-send $*\" >> '{self.log}'\n"
+                              f"sleep 1\necho 'notify-send done' >> '{self.log}'\n")
+        self.assertEqual(lines, [lines[0], "notify-send done"])
+        self.assertTrue(lines[0].startswith("notify-send"))
 
 if __name__ == "__main__":
     unittest.main()
