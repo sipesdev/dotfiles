@@ -34,6 +34,7 @@ Item {
             Text {
                 Layout.fillWidth: true
                 text: hero.title
+                textFormat: Text.PlainText
                 elide: Text.ElideRight
                 color: Theme.text
                 font.family: Theme.fontFamily
@@ -44,6 +45,7 @@ Item {
                 visible: hero.status !== ""
                 Layout.fillWidth: true
                 text: hero.status
+                textFormat: Text.PlainText
                 elide: Text.ElideRight
                 color: Theme.dim
                 font.family: Theme.fontFamily

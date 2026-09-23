@@ -7,6 +7,7 @@ set -uo pipefail
 
 # Override only to exercise the no-route path (e.g. NETWORK_PROBE_TARGET=2001:db8::1 with no IPv6 route).
 probe=${NETWORK_PROBE_TARGET:-1.1.1.1}
+[[ $probe =~ ^[0-9A-Fa-f:.]+$ ]] || exit 0   # an address, never an option
 
 route_json=$(ip -j route get "$probe" 2>/dev/null) || exit 0
 [[ -n $route_json ]] || exit 0

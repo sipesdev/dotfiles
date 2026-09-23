@@ -30,3 +30,7 @@ id_ecdsa
 node_modules/
 dist/
 target/
+# ── agent harness state (per-machine, never shared) ──────
+.claude/
+.claude-plan/
+PLAN.md

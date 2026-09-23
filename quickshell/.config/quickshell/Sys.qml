@@ -61,9 +61,12 @@ Singleton {
             splitMarker: "\n"
             onRead: sys.refreshEthernet()
         }
-        // Quickshell does not auto-restart a Process; keep it alive if `nmcli monitor` ever exits.
-        onRunningChanged: if (!running) running = true
+        // Quickshell does not auto-restart a Process. Come back after a pause rather than on
+        // the same event-loop turn, so a stopped NetworkManager costs a 2 s poll, not a fork
+        // loop inside the shell.
+        onRunningChanged: if (!running) nmWatchRetry.start()
     }
+    Timer { id: nmWatchRetry; interval: 2000; onTriggered: nmWatch.running = true }
 
     // ── Network (Quickshell.Networking, NetworkManager backend) ──────
     // Native device/network objects shared by the bar pill and the Network drawer. Replaces
@@ -149,6 +152,29 @@ Singleton {
         function onDiscoveringChanged() { if (!sys.btAdapter.discovering) sys.btOwesDiscoveryStop = false; }
     }
 
+    // Pairing agent, alive only while a Bluetooth drawer is open on a powered adapter -- the
+    // same window as discovery. Quickshell registers no Agent1, so pairing from the drawer
+    // needs one. NoInputNoOutput is just-works auto-accept, which is exactly why it must not
+    // run for the whole session: BlueZ leaves the adapter Pairable, and a session-long agent
+    // would accept any nearby device's pairing request unasked. bluetoothctl has its own agent.
+    Process {
+        id: btAgent
+        command: ["bt-agent", "--capability=NoInputNoOutput"]
+        running: sys.btWantsDiscovery
+    }
+    // The binding above can start the agent but not stop it: stopping a Process sends SIGTERM,
+    // which bt-agent catches and does not exit on, so it would outlive the drawer -- orphaned,
+    // untracked and still auto-accepting, one more per open. SIGINT is what it quits on, and
+    // `running` stays true until the process is really gone, so this only fires on a live agent.
+    // processId is null until the child exists; Process.signal is a bare kill(pid), and kill(0)
+    // would reach the whole quickshell process group.
+    Connections {
+        target: sys
+        function onBtWantsDiscoveryChanged() {
+            if (!sys.btWantsDiscovery && btAgent.running && btAgent.processId) btAgent.signal(2);   // SIGINT
+        }
+    }
+
     // ── Agents usage (bar pill + AgentsDrawer) ───────────────────────
     // One JSON record per coding agent under ~/.local/state/agents/usage/,
     // written atomically by agent-usage-update; collectors print nothing for
@@ -175,8 +201,11 @@ Singleton {
 
     Process {
         id: agentList
-        command: ["sh", "-c", "find " + Quickshell.env("HOME")
-            + "/.local/state/agents/usage -maxdepth 1 -name '*.json' -printf '%f\\n' 2>/dev/null; true"]
+        // The directory may not exist yet (no collector has run); find then exits 1 with a
+        // message on stderr, which a Process without a stderr parser discards, and the empty
+        // stdout lists no agents.
+        command: ["find", Quickshell.env("HOME") + "/.local/state/agents/usage",
+                  "-maxdepth", "1", "-name", "*.json", "-printf", "%f\n"]
         stdout: StdioCollector { onStreamFinished: sys.applyAgentListing(text) }
     }
     // Only reassign agentIds when the set actually changed, so the FileViews

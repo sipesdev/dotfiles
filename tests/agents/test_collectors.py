@@ -3,13 +3,16 @@
 Run: python tests/agents/test_collectors.py   (wired into `make test`)
 The collectors are extensionless scripts, loaded by path. No network.
 """
+import http.server
 import importlib.machinery
 import importlib.util
 import json
 import os
 import pathlib
 import tempfile
+import threading
 import unittest
+import urllib.error
 from datetime import datetime, timedelta, timezone
 
 REPO = pathlib.Path(__file__).resolve().parents[2]
@@ -303,6 +306,79 @@ class GeminiParse(unittest.TestCase):
         self.assertEqual(ev["outputTokens"], 8)        # output + thoughts + tool
         self.assertEqual(ev["cacheReadInputTokens"], 3)
         self.assertEqual(ev["model"], "gemini-2.5-pro")
+
+
+class FiniteTokens(unittest.TestCase):
+    """json.loads accepts the bare literals Infinity and NaN; int() of either raises and
+    would take the whole collector down, leaving the record stale forever."""
+
+    def test_claude_skips_non_finite(self):
+        self.assertEqual(claude.usage_tokens({"input_tokens": float("inf"), "output_tokens": float("nan"),
+                                              "cache_read_input_tokens": 2.0,
+                                              "cache_creation_input_tokens": True}),
+                         (0, 0, 2, 0))
+
+    def test_codex_number(self):
+        self.assertEqual(codex.number(float("inf")), 0)
+        self.assertEqual(codex.number(float("nan")), 0)
+        self.assertEqual(codex.number(7.9), 7)
+        self.assertEqual(codex.number(True), 0)
+        self.assertEqual(codex.number(10 ** 30), 10 ** 30)
+
+    def test_gemini_message_tokens_non_finite(self):
+        # Every token key parse_message reads (the n(...) calls in agent-usage-gemini
+        # parse_message) set to inf must come back as 0, and the message must still parse.
+        out = gemini.parse_message({"type": "gemini", "id": "m1", "model": "gemini-x",
+                                    "timestamp": "2026-09-01T00:00:00Z",
+                                    "tokens": {k: float("inf")
+                                               for k in ("input", "output", "thoughts", "tool", "cached")}})
+        self.assertIsNotNone(out)
+        # the output keys parse_message produces through n()
+        for k in ("inputTokens", "outputTokens", "cacheReadInputTokens"):
+            self.assertEqual(out[k], 0)
+
+
+class RedirectRefused(unittest.TestCase):
+    """A 3xx from the usage endpoint must not be followed: urllib would replay the
+    Authorization header to the new host. Loopback server only; no external network."""
+
+    def setUp(self):
+        hits = self.hits = []
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                hits.append((self.path, self.headers.get("Authorization")))
+                self.send_response(302)
+                self.send_header("Location", "http://%s:%d/leak" % self.server.server_address)
+                self.end_headers()
+
+            do_POST = do_GET
+
+            def log_message(self, *args):
+                pass
+
+        self.srv = http.server.HTTPServer(("127.0.0.1", 0), Handler)
+        threading.Thread(target=self.srv.serve_forever, daemon=True).start()
+        self.base = "http://127.0.0.1:%d" % self.srv.server_address[1]
+
+    def tearDown(self):
+        self.srv.shutdown()
+        self.srv.server_close()
+
+    def test_claude_probe_stops_at_redirect(self):
+        old, claude.USAGE_URL = claude.USAGE_URL, self.base + "/usage"
+        try:
+            with self.assertRaises(urllib.error.HTTPError) as cm:
+                claude.probe_limits("tok")
+        finally:
+            claude.USAGE_URL = old
+        self.assertEqual(cm.exception.code, 302)
+        self.assertEqual(self.hits, [("/usage", "Bearer tok")])
+        cm.exception.close()   # HTTPError is a file object; unclosed it warns at GC
+
+    def test_gemini_opener_refuses_redirects(self):
+        self.assertIsNone(gemini.NoRedirect().redirect_request(None, None, 302, "Found", {}, "https://x/"))
+        self.assertTrue(any(isinstance(h, gemini.NoRedirect) for h in gemini.OPENER.handlers))
 
 
 if __name__ == "__main__":

@@ -37,6 +37,7 @@ Rectangle {
         Text {
             Layout.fillWidth: true
             text: row.label
+            textFormat: Text.PlainText
             elide: Text.ElideRight
             color: row.labelColor
             font.family: Theme.fontFamily
@@ -45,6 +46,7 @@ Rectangle {
         Text {
             visible: row.detail !== ""
             text: row.detail
+            textFormat: Text.PlainText
             color: row.detailColor
             font.family: Theme.fontFamily
             font.pixelSize: Theme.fontSize - 2
@@ -52,6 +54,7 @@ Rectangle {
         Text {
             visible: row.trailing !== ""
             text: row.trailing
+            textFormat: Text.PlainText
             color: row.trailingColor
             font.family: Theme.fontFamily
             font.pixelSize: Theme.fontSize

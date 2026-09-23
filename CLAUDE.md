@@ -125,7 +125,11 @@ native NetworkManager / BlueZ state (`wifiDevice`, `wifiNetwork`, `wifiStrength`
 `btConnected`) that both the pills and drawers read, owns Bluetooth power (`setBluetoothPower`, via the
 rfkill soft block so the choice survives a reboot) and the one discovery session every monitor's Bluetooth
 drawer shares (`btDrawersOpen`, `btOwesDiscoveryStop`: scan only while a drawer is open, stopped after
-close against BlueZ's confirmed state). It also owns the agents usage records (one `AgentRecord.qml`
+close against BlueZ's confirmed state) and the `bt-agent` pairing agent, which runs only for that same
+window (`btAgent`, `running: btWantsDiscovery`); it is no longer autostarted. Stopping a `Process` sends
+SIGTERM, which `bt-agent` catches without ever exiting, so the close also sends it SIGINT — drop that and
+the auto-accept agent outlives the drawer, orphaned, one more per open.
+It also owns the agents usage records (one `AgentRecord.qml`
 `FileView` per file under `~/.local/state/agents/usage/`, the 900 s `agent-usage-update` poller, a 30 s
 retry when a collector advises one, and `launchAgentTerminal()`); the agents pill is **hidden** unless some
 record reports `ready`, and right-clicking it launches the agent terminal. Primitives: `DrawerHero`,
@@ -140,7 +144,12 @@ no-op, while an update is already running).
 
 ### Notifications (`Notifs.qml`) — Quickshell owns the bus, not mako
 `Notifs.qml` is the notification daemon: it owns `org.freedesktop.Notifications`, caps Normal and Low
-notifications at 8s, and holds arrivals while a popout is open. **Critical urgency is exempt from the
+notifications at 8s, and holds arrivals while a popout is open. Every sender-chosen string the shell
+renders (notification summary, app name, body, action labels; SSIDs, Bluetooth and PipeWire names;
+usage-record text) is `textFormat: Text.PlainText` — Qt's default `AutoText` parses HTML, and an `<img>`
+in an SSID or a summary would make the bar fetch it. Notification images pass `NotifModel.localImage`,
+which drops every non-local scheme, including one smuggled inside an `image://` provider path.
+**Critical urgency is exempt from the
 cap** — a critical card never starts its countdown and stays until clicked or dismissed (overflow past the
 5 visible cards is the escape valve that stops the stack jamming). Two senders go critical: `crash-watch`,
 whose sticky toast is the click target, and `/usr/bin/uwsm-app`, which sends one when an app fails to launch
@@ -158,9 +167,11 @@ unowned bus.
 Quickshell is therefore the only notification daemon on the box, and there is deliberately no fallback: if
 it fails to load, notifications are down until it loads again. That is what makes a config error under
 `quickshell/` more expensive than it looks — restart it and check the log (above) after any QML edit.
-A restart also drops any *pending* crash toast: `crash-watch`'s `notify-send` is blocked waiting for the
-click and exits actionless when the server goes away. Accepted failure mode; the recovery is to run
-`agent-crash <pid>` by hand against the PID in `coredumpctl list`.
+A restart no longer loses a *pending* crash toast: `crash-watch`'s `notify-send` is blocked waiting for
+the click and libnotify never returns once the server that showed the toast is gone, so `crash-watch`
+polls the bus name's owner while it waits, kills the stranded waiter when a new connection holds the
+name, and shows the toast again on the new server (ten rounds at most). `agent-crash <pid>` by hand
+against the PID in `coredumpctl list` remains the fallback.
 
 ## Helper scripts (`localbin/`)
 - `backlight` — the only writer of the panel backlight: `get` / `set N` (linear, 0-100 of the safe
@@ -223,12 +234,18 @@ rename), but edit at the repo path anyway and run `stow-doctor` if a link looks 
   seeds the first message; otherwise it opens a floating alacritty (class `agent-tui`, see the window rule).
   It does **not** `cd` anywhere — launching from `$HOME` starts the agent in `$HOME` (by request; Omarchy
   hopped to `~/Projects` to dodge the harness's workspace-trust prompt, an accepted trade-off here).
-- `agent-crash` — `agent-crash <pid> [name] [exe] [signal]`: turns a coredump PID into an AI diagnosis. Adds
+- `agent-crash` — `agent-crash <pid> [name] [signal]`: turns a coredump PID into an AI diagnosis. Adds
   the `coredumpctl` timestamp, `cd`s to this repo (the only place the agent may fix) and points it at the
-  `diagnose-crash` skill. Runnable by hand against any PID in `coredumpctl list`.
-- `crash-watch` — follows the journal for systemd-coredump entries (run by `crash-watch.service`) and raises
-  one sticky critical toast per program per 60 s for *this user's* crashes; clicking it runs `agent-crash`.
-  Waits for the notification bus first, so a quickshell crash still announces itself once the shell is back.
+  `diagnose-crash` skill. Runnable by hand against any PID in `coredumpctl list`. The prompt marks
+  everything beyond PID/name/signal as untrusted evidence; the skill says the same.
+- `crash-watch` — follows the journal for systemd-coredump entries (run by `crash-watch.service`) and
+  believes an entry only when its `COREDUMP_FILENAME` is an existing root-owned core under
+  `/var/lib/systemd/coredump` whose name carries the same PID and was written in the last five minutes (the
+  `COREDUMP_*` fields themselves are forgeable by any local process via the 666 journal socket), takes the
+  program name from that file name, and raises one sticky critical toast per program per 60 s for *this
+  user's* crashes; clicking it runs `agent-crash`. Waits for the notification bus first, so a quickshell
+  crash still announces itself once the shell is back, and shows a pending toast again on the new server
+  when the shell restarts under it.
 - `agent-usage-update` + `agent-usage-{claude,codex,gemini}` — usage records for the agents pill/drawer, one
   JSON file per agent at `~/.local/state/agents/usage/<id>.json` (written atomically; `--force` bypasses the
   scan and probe caches, `--limits-only` is accepted for CLI parity but the incremental transcript scan is

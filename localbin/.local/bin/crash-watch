@@ -5,11 +5,31 @@
 # systemd-coredump journals every core dump under a fixed MESSAGE_ID with
 # structured COREDUMP_* fields; follow that stream rather than polling
 # coredumpctl. Run by the crash-watch.service user unit.
+#
+# Trust model. MESSAGE_ID and the COREDUMP_* fields are ordinary journal
+# fields: any process that can write /run/systemd/journal/socket (mode 666, so
+# every process on the box) can post an entry carrying them, with any UID, COMM
+# or EXE it likes and no crash at all. Only the fields journald stamps itself
+# (the _-prefixed ones) are trustworthy, and the ones that would identify the
+# sender (_COMM, _EXE, _SYSTEMD_UNIT) are missing from about half of the real
+# systemd-coredump entries on this machine -- journald reads them from /proc
+# after the fact and the coredump handler has usually exited by then. What a
+# forger cannot do is create a file in /var/lib/systemd/coredump, a root-owned
+# directory. So an entry is believed only when it names an existing root-owned
+# core there whose file name agrees with the entry's PID, and the program name
+# comes from that file name, never from the entry. A core older than five
+# minutes is not believed either: the directory is world-listable, so a stale
+# core's name could be replayed by an entry that names its PID. The click hands
+# agent-crash only what came from the file name (name, pid) plus a
+# shape-checked signal.
 
 set -uo pipefail
 
 # See systemd.journal-fields(7).
 readonly COREDUMP_MESSAGE_ID=fc2e22bc6ee647b6b90729ab34a250b1
+
+# Where systemd-coredump writes cores (coredump.conf Storage=external, the default).
+readonly CORE_DIR=${CRASH_CORE_DIR:-/var/lib/systemd/coredump}
 
 # Crash loops dump core repeatedly; announce each program at most once a window.
 readonly dedupe_seconds=${CRASH_DEDUPE_SECONDS:-60}
@@ -17,7 +37,34 @@ readonly dedupe_seconds=${CRASH_DEDUPE_SECONDS:-60}
 # Extended regex of process names never worth announcing.
 readonly ignore_pattern=${CRASH_IGNORE:-}
 
+# How often a pending toast checks that the server it was shown on is still the one
+# owning the bus name (see toast).
+readonly owner_poll_seconds=${CRASH_OWNER_POLL_SECONDS:-3}
+
 declare -A last_notified
+
+# core_identity <path> -- print "<comm> <uid> <pid>" parsed from a systemd-coredump
+# core file name, or fail. Cores are named
+#   core.<comm>.<uid>.<boot-id>.<pid>.<timestamp-usec>[.zst|.lz4|.xz]
+# with comm escaped (\x2e for '.', \x20 for ' ', ...), so the name has exactly
+# these dot-separated fields and printf %b undoes the escapes. comm is the
+# kernel's 15-character name (the process's own choice, so it is decoded and
+# then gated to visible characters); the toast may show a truncated one; the
+# untruncated path is the entry's to forge. Only the name is parsed here; the
+# caller checks that the file exists and is root-owned.
+core_identity() {
+  local base=${1##*/} head comm uid boot pid rest
+  [[ ${1%/*} == "$CORE_DIR" && $base == core.* ]] || return 1
+  IFS=. read -r head comm uid boot pid rest <<<"$base"
+  [[ -n $comm && $uid =~ ^[0-9]+$ && $boot =~ ^[0-9a-f]{32}$ && $pid =~ ^[0-9]+$ ]] || return 1
+  # comm is the crashed process's own 15-byte name; decode the \xHH escapes, then
+  # refuse anything that is not a run of visible characters so the decoded name
+  # can never carry a separator or a terminal control byte into the caller's
+  # "<comm> <uid> <pid>" line, the toast, or the prompt.
+  comm=$(printf '%b' "$comm")
+  [[ $comm =~ ^[[:graph:]]+$ ]] || return 1
+  printf '%s %s %s\n' "$comm" "$uid" "$pid"
+}
 
 # Quickshell owns org.freedesktop.Notifications, so a quickshell crash takes
 # the notification server down with it -- and that is exactly the crash most
@@ -33,59 +80,133 @@ notification_wait() {
   return 1
 }
 
+# The unique bus name that owns org.freedesktop.Notifications right now, or fail.
+notification_owner() {
+  busctl --user call org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DBus \
+    GetNameOwner s org.freedesktop.Notifications 2>/dev/null
+}
+
+# toast <owner> <notify-send args...> -- show the toast and print the action it
+# ends with. -A implies --wait, and libnotify returns only when the server
+# reports the toast closed or clicked; a server that exits reports nothing, so
+# the waiter would sit for good while the toast it is waiting on is gone with
+# the server. Poll the name's owner while waiting (wait -n over the waiter and a
+# sleeper, so a click is acted on at once): when a different connection holds
+# the name, kill the waiter and return 2 so the caller can announce again.
+toast() {
+  local owner=$1 waiter sleeper finished= status current
+  shift
+  notify-send "$@" &
+  waiter=$!
+  while :; do
+    sleep "$owner_poll_seconds" &
+    sleeper=$!
+    wait -n -p finished "$waiter" "$sleeper"
+    status=$?
+    if [[ $finished == "$waiter" ]]; then
+      kill "$sleeper" 2>/dev/null
+      return "$status"
+    fi
+    # A failed lookup (busctl error, or the name unowned between servers) is not a
+    # change of owner: keep waiting until a different connection answers.
+    current=$(notification_owner) || continue
+    [[ $current == "$owner" ]] && continue
+    kill "$waiter" 2>/dev/null
+    wait "$waiter" 2>/dev/null
+    return 2
+  done
+}
+
 # One background subshell per crash: -A implies --wait, so notify-send blocks
 # until the toast is clicked (prints "default") or dismissed (prints nothing).
 # Critical urgency is exempt from Notifs.qml's 8s cap, so the toast holds until
 # acted on. Crash details ride as discrete argv words -- never re-parsed, so a
-# hostile process name cannot become a command. If quickshell restarts while a
-# toast is pending, the waiting notify-send exits actionless and that click is
-# lost; `agent-crash <pid>` by hand (see coredumpctl list) is the recovery.
+# hostile process name cannot become a command. A shell restart takes the toast
+# with it and leaves notify-send waiting on nothing (toast above), so the toast
+# is shown again on the new server, a bounded number of times: a shell stuck in
+# a restart loop must not keep this subshell alive forever.
 announce() {
-  local name=$1 pid=$2 exe=$3 signal=$4
+  local name=$1 pid=$2 signal=$3
   (
-    notification_wait || exit 0
-    action=$(notify-send --urgency=critical --app-name=crash-watch \
-      -A default=Diagnose "Process crashed: $name" "Click to diagnose with AI")
-    [[ $action == default ]] &&
-      exec setsid "$HOME/.local/bin/agent-crash" "$pid" "$name" "$exe" "$signal"
+    local owner action attempt status
+    echo "crash-watch: announcing $name (pid $pid, $signal)" >&2
+    for ((attempt = 0; attempt < 10; attempt++)); do
+      notification_wait || {
+        echo "crash-watch: no notification server after 60 s; toast for $name (pid $pid) lost" >&2
+        exit 0
+      }
+      # The name can be owned (GetServerInformation answered) and the lookup still fail;
+      # give it a moment rather than burning all ten rounds in under a second.
+      owner=$(notification_owner) || { sleep 2; continue; }
+      action=$(toast "$owner" --urgency=critical --app-name=crash-watch \
+        -A default=Diagnose "Process crashed: $name" "Click to diagnose with AI")
+      status=$?
+      case $status in
+        2) echo "crash-watch: notification server replaced; showing $name (pid $pid) again" >&2
+           continue ;;
+        0) if [[ $action == default ]]; then
+             echo "crash-watch: $name (pid $pid) toast clicked; launching agent-crash" >&2
+             exec setsid "$HOME/.local/bin/agent-crash" "$pid" "$name" "$signal"
+           fi
+           echo "crash-watch: $name (pid $pid) toast dismissed" >&2
+           exit 0 ;;
+        *) echo "crash-watch: notify-send exited $status for $name (pid $pid)" >&2
+           exit 0 ;;
+      esac
+    done
+    echo "crash-watch: gave up on $name (pid $pid) after $attempt rounds" >&2
   ) &
 }
 
-# -n 0 so a service restart does not re-announce crashes already dealt with.
-journalctl -f -n 0 -o json "MESSAGE_ID=$COREDUMP_MESSAGE_ID" 2>/dev/null |
-  while IFS= read -r entry; do
-    IFS=$'\t' read -r crash_uid comm pid exe signal < <(
-      jq -r '[(.COREDUMP_UID // "-"),
-              (.COREDUMP_COMM // "-"),
-              (.COREDUMP_PID // "-"),
-              (.COREDUMP_EXE // "-"),
-              (.COREDUMP_SIGNAL_NAME // "-")] | @tsv' <<<"$entry" 2>/dev/null
-    )
+main() {
+  # -n 0 so a service restart does not re-announce crashes already dealt with.
+  journalctl -f -n 0 -o json "MESSAGE_ID=$COREDUMP_MESSAGE_ID" |
+    while IFS= read -r entry; do
+      IFS=$'\t' read -r pid file signal < <(
+        jq -r '[(.COREDUMP_PID // "-"),
+                (.COREDUMP_FILENAME // "-"),
+                (.COREDUMP_SIGNAL_NAME // "-")] | @tsv' <<<"$entry" 2>/dev/null
+      )
 
-    [[ $pid =~ ^[0-9]+$ ]] || continue
+      [[ $pid =~ ^[0-9]+$ ]] || continue
+      echo "crash-watch: coredump entry for pid $pid" >&2
 
-    # Only this user's crashes; a daemon dumping core is a sysadmin's problem.
-    # COREDUMP_UID is the crashing process's owner. _UID would be the uid of the
-    # systemd-coredump handler that wrote the entry -- 979 (systemd-coredump) for
-    # a root crash, not 0 -- so matching on it compares against the wrong process.
-    [[ $crash_uid =~ ^[0-9]+$ ]] || continue
-    ((crash_uid == UID)) || continue
+      # The core file is the one thing the entry cannot forge (trust model
+      # above): it must exist under CORE_DIR, be root-owned, be fresh, and name
+      # this PID.
+      [[ -f $file ]] || continue
+      read -r owner mtime < <(stat -c '%u %Y' -- "$file" 2>/dev/null) || continue
+      [[ $owner == 0 ]] || continue
+      # The directory is world-listable, so an old core's name is public: an entry
+      # could point at one to summon the toast without any crash. This stream is
+      # live (-f -n 0), so a genuine entry's core was written moments ago.
+      (( EPOCHSECONDS - mtime < 300 )) || continue
+      read -r name crash_uid core_pid < <(core_identity "$file") || continue
+      [[ $core_pid == "$pid" ]] || continue
 
-    # comm is truncated to 15 characters, so prefer the executable's basename.
-    name=$comm
-    [[ $exe == /* ]] && name=${exe##*/}
+      # Only this user's crashes; a daemon dumping core is a sysadmin's problem.
+      ((crash_uid == UID)) || continue
 
-    [[ -n $ignore_pattern && $name =~ $ignore_pattern ]] && continue
+      [[ $signal =~ ^SIG[A-Z0-9]{1,12}$ ]] || signal=unknown
 
-    # Never announce our own machinery, or it notifies about itself.
-    [[ $name == crash-watch* || $name == agent-* || $name == agent ]] && continue
+      [[ -n $ignore_pattern && $name =~ $ignore_pattern ]] && continue
 
-    now=$EPOCHSECONDS
-    (((now - ${last_notified[$name]:-0}) < dedupe_seconds)) && continue
+      # Never announce our own machinery, or it notifies about itself.
+      [[ $name == crash-watch* || $name == agent-* || $name == agent ]] && continue
 
-    # Delivery is async (the subshell may still be waiting on the notification
-    # server), so unlike Omarchy the dedupe window starts at launch, not at
-    # confirmed delivery. A crash loop during a shell outage self-dedupes anyway.
-    announce "$name" "$pid" "$exe" "$signal"
-    last_notified[$name]=$now
-  done
+      now=$EPOCHSECONDS
+      if (((now - ${last_notified[$name]:-0}) < dedupe_seconds)); then
+        echo "crash-watch: $name (pid $pid) crashed again within ${dedupe_seconds}s; not announced" >&2
+        continue
+      fi
+
+      # Delivery is async (the subshell may still be waiting on the notification
+      # server), so unlike Omarchy the dedupe window starts at launch, not at
+      # confirmed delivery. A crash loop during a shell outage self-dedupes anyway.
+      announce "$name" "$pid" "$signal"
+      last_notified[$name]=$now
+    done
+}
+
+# Sourced by tests/agents/test_crash_watch.py for core_identity and announce; run only as a program.
+[[ ${BASH_SOURCE[0]} == "$0" ]] && main

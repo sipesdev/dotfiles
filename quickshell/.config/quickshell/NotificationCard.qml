@@ -2,6 +2,7 @@ import Quickshell
 import Quickshell.Widgets
 import QtQuick
 import QtQuick.Layouts
+import "NotifModel.js" as NotifModel
 
 // One notification. The reveal animates the cell height 0 -> cardHeight with the card
 // pinned to the cell's bottom edge, so the card slides down out of the cell's top edge --
@@ -147,13 +148,20 @@ Item {
                         asynchronous: true
                         // The app's own image wins; otherwise resolve its icon name against
                         // the icon theme (iconPath returns "" when check is set and it misses).
-                        source: cell.record.image !== "" ? cell.record.image
+                        // The image hint is sender-chosen, so only local sources are honoured.
+                        readonly property string senderImage: NotifModel.localImage(cell.record.image)
+                        source: senderImage !== "" ? senderImage
                               : cell.record.appIcon !== "" ? Quickshell.iconPath(cell.record.appIcon, true)
                               : ""
                     }
+                    // Summary, app name and action labels are sender-chosen strings. Text
+                    // defaults to AutoText, which parses HTML, so a summary could fetch an
+                    // <img>, grow the card past the screen, or dress up as another app.
+                    // Literal, like the body below.
                     Text {
                         Layout.fillWidth: true
                         text: cell.record.summary
+                        textFormat: Text.PlainText
                         color: Theme.bright
                         elide: Text.ElideRight
                         font.family: Theme.fontFamily
@@ -163,6 +171,7 @@ Item {
                     Text {
                         Layout.maximumWidth: 90
                         text: cell.record.appName
+                        textFormat: Text.PlainText
                         color: Theme.dim
                         elide: Text.ElideRight
                         font.family: Theme.fontFamily
@@ -209,6 +218,7 @@ Item {
                             Text {
                                 anchors.centerIn: parent
                                 text: btn.modelData.text
+                                textFormat: Text.PlainText
                                 color: Theme.text
                                 font.family: Theme.fontFamily
                                 font.pixelSize: Theme.fontSize - 1
