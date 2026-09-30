@@ -20,6 +20,16 @@ dns:
 	sudo nmcli general reload dns-full
 	@grep nameserver /etc/resolv.conf
 
+# ── Spotifast palette (a copy, not a stow link) ──────────────────
+# Spotifast skips symlinks in its themes folder, so the matte-black palette is
+# installed as a real file. Re-run after editing the repo copy; the running app
+# picks the change up by itself (reload-themes is belt and braces).
+SPOTIFAST_THEME := .config/spotifast/themes/Matte Black.json
+.PHONY: spotifast-theme
+spotifast-theme:
+	install -Dm644 "spotifast/$(SPOTIFAST_THEME)" "$(HOME)/$(SPOTIFAST_THEME)"
+	-spotifast reload-themes
+
 # ── Agent plumbing stow cannot deliver ───────────────────────────
 # Claude Code reads skills from ~/.claude/skills (a skill dir may be a
 # symlink); ~/.claude itself is not stowed. Idempotent.

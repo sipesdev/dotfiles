@@ -77,6 +77,13 @@ and `hypr/modules/envs.lua` (in-session).
   (Colibre Dark), no grammar checker — both by choice. Spellcheck/hyphenation are plain packages
   (`hunspell-en_us`, `hyphen-en`) found via the compiled-in `/usr/share/{hunspell,hyphen}` paths — nothing
   to enable.
+- **Spotifast** (`spotifast-bin`, egui — neither GTK nor Qt) takes a JSON palette:
+  `spotifast/.config/spotifast/themes/Matte Black.json`, the output of the app's own Omarchy template
+  (`/usr/share/spotifast/omarchy/spotifast.json.tpl`) for `#121212` / `#bebebe` / `#e68e0d`. `spotifast/` is
+  **not** in `PKGS`: the app skips symlinks in its themes folder, so `make spotifast-theme` installs a real
+  copy — re-run it after editing the repo file. Select it once in Settings → Appearance (`custom_theme` in
+  `settings.json`, which the app rewrites — not tracked). Album-art tinting (`accent_from_art`) is a separate
+  toggle: while on, pages and the player bar take the cover's colour; off gives fixed matte black throughout.
 
 ## Hyprland (`hypr/`) — it's Lua, not hyprlang
 This build is configured in **Lua**, not the usual `.conf`/hyprlang. `hyprland.lua` is the entry point; it
