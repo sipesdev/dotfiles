@@ -40,6 +40,7 @@ a package.
 - `qt`         → `~/.config/qt5ct`, `qt6ct`, `Kvantum` (Kvantum matte-black for Qt5/Qt6)
 - `uwsm`       → `~/.config/uwsm/env`           (login-phase session env; **activates** the Qt theme)
 - `alacritty`  → `~/.config/alacritty`          (matte-black terminal; `JetBrainsMono Nerd Font`, matches the Quickshell `Theme.qml` system font)
+- `steam`      → `~/.local/share/applications/steam.desktop` (shadows the vendor launcher so every entry point starts Steam with `-pipewire`, the Wayland portal capture path for Remote Play)
 - `doom`       → `~/.config/doom`, `~/.local/share/applications/emacs.desktop` (Doom Emacs private config + launcher entry; the framework is an untracked clone at `~/.config/emacs` — see Emacs below)
 - `agents`     → `~/.agents/skills`             (cross-harness agent skills; `make agents-setup` links them into `~/.claude/skills`)
 - `systemd`    → `~/.config/systemd/user`, `~/.config/environment.d` (crash-watch + emacs daemon units; the user-manager PATH; enabled once via `make agents-setup` / `make emacs-setup`)
