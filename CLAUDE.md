@@ -227,6 +227,12 @@ rename), but edit at the repo path anyway and run `stow-doctor` if a link looks 
   nerd-icons theme renders the same in terminal frames, and Doom wires it to workspaces, projectile, evil and
   magit. Chosen over neotree (2026-09-08): twice the users, active upstream, incremental redraws and async git
   status on large trees. A changed module list needs a daemon restart; `M-x doom/reload` does not reload it.
+- **Discord presence:** `elcord` (`packages.el`) talks to Vesktop's arRPC socket
+  (`$XDG_RUNTIME_DIR/discord-ipc-0`). `+matte/elcord-sync` in `config.el` keeps `elcord-mode` on only
+  while a top-level emacsclient frame is open (`server-after-make-frame-hook` / `delete-frame-functions`),
+  because the daemon outlives every frame and would otherwise show Emacs as played all session.
+  `elcord-quiet` hides the 15 s reconnect messages while Vesktop is closed. It broadcasts the buffer name
+  and line to Discord (`elcord-display-buffer-details nil` shows only the mode).
 
 ## Helper scripts (`localbin/`)
 - `backlight` — the only writer of the panel backlight: `get` / `set N` (linear, 0-100 of the safe
