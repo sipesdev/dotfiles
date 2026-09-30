@@ -105,3 +105,25 @@
 ;; herdr pane does not, and without the tracking request herdr keeps clicks for
 ;; its own text selection instead of forwarding them to Emacs.
 (xterm-mouse-mode 1)
+
+;; Discord Rich Presence (elcord, over Vesktop's discord-ipc socket). The daemon
+;; runs from login to logout, so elcord-mode is on only while an emacsclient
+;; frame is open; left on, Discord would show Emacs as played all session. Quiet,
+;; because while Vesktop is closed it retries every 15s and would echo each try.
+;; The Doom icon is set by hand: elcord picks it only when `doom-version' is
+;; bound, and this Doom core no longer defines it.
+(after! elcord
+  (setq elcord-quiet t
+        elcord-editor-icon "doom_icon"))
+(defun +matte/elcord-sync (&optional dying)
+  "Run `elcord-mode' exactly while a top-level client frame other than DYING is open."
+  (let ((open (cl-some (lambda (f)
+                         (and (not (eq f dying))
+                              (not (frame-parent f))
+                              (frame-parameter f 'client)))
+                       (frame-list))))
+    (when (xor open (bound-and-true-p elcord-mode))
+      (elcord-mode (if open 1 -1)))))
+(when (daemonp)
+  (add-hook 'server-after-make-frame-hook #'+matte/elcord-sync)
+  (add-hook 'delete-frame-functions #'+matte/elcord-sync))

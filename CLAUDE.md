@@ -40,6 +40,7 @@ a package.
 - `qt`         → `~/.config/qt5ct`, `qt6ct`, `Kvantum` (Kvantum matte-black for Qt5/Qt6)
 - `uwsm`       → `~/.config/uwsm/env`           (login-phase session env; **activates** the Qt theme)
 - `alacritty`  → `~/.config/alacritty`          (matte-black terminal; `JetBrainsMono Nerd Font`, matches the Quickshell `Theme.qml` system font)
+- `steam`      → `~/.local/share/applications/steam.desktop` (shadows the vendor launcher so every entry point starts Steam with `-pipewire`, the Wayland portal capture path for Remote Play)
 - `doom`       → `~/.config/doom`, `~/.local/share/applications/emacs.desktop` (Doom Emacs private config + launcher entry; the framework is an untracked clone at `~/.config/emacs` — see Emacs below)
 - `agents`     → `~/.agents/skills`             (cross-harness agent skills; `make agents-setup` links them into `~/.claude/skills`)
 - `systemd`    → `~/.config/systemd/user`, `~/.config/environment.d` (crash-watch + emacs daemon units; the user-manager PATH; enabled once via `make agents-setup` / `make emacs-setup`)
@@ -226,6 +227,12 @@ rename), but edit at the repo path anyway and run `stow-doctor` if a link looks 
   nerd-icons theme renders the same in terminal frames, and Doom wires it to workspaces, projectile, evil and
   magit. Chosen over neotree (2026-09-08): twice the users, active upstream, incremental redraws and async git
   status on large trees. A changed module list needs a daemon restart; `M-x doom/reload` does not reload it.
+- **Discord presence:** `elcord` (`packages.el`) talks to Vesktop's arRPC socket
+  (`$XDG_RUNTIME_DIR/discord-ipc-0`). `+matte/elcord-sync` in `config.el` keeps `elcord-mode` on only
+  while a top-level emacsclient frame is open (`server-after-make-frame-hook` / `delete-frame-functions`),
+  because the daemon outlives every frame and would otherwise show Emacs as played all session.
+  `elcord-quiet` hides the 15 s reconnect messages while Vesktop is closed. It broadcasts the buffer name
+  and line to Discord (`elcord-display-buffer-details nil` shows only the mode).
 
 ## Helper scripts (`localbin/`)
 - `backlight` — the only writer of the panel backlight: `get` / `set N` (linear, 0-100 of the safe

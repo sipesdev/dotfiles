@@ -56,3 +56,7 @@
 ;; bg-alt, which in a daemon's terminal frame shows as an opaque darker block
 ;; against Alacritty's #121212. One matte background everywhere, GUI and tty.
 (package! solaire-mode :disable t)
+
+;; Discord Rich Presence through Vesktop's IPC socket; config.el ties it to open
+;; client frames.
+(package! elcord)
