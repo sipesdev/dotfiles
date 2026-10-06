@@ -16,7 +16,7 @@ This is my personally managed dotfiles for my Arch Linux installation. It comes 
 - `gtk`        → `~/.config/gtk-3.0`, `~/.config/gtk-4.0`  (matte-black GTK3/GTK4 overrides)
 - `qt`         → `~/.config/{qt5ct,qt6ct,Kvantum}`         (Kvantum matte-black for Qt5/Qt6)
 - `uwsm`       → `~/.config/uwsm/env`                      (login-phase env; activates the Qt theme)
-- `kitty`      → `~/.config/kitty`                         (matte-black terminal; JetBrainsMono Nerd Font)
+- `kitty`      → `~/.config/kitty`, `~/.config/xdg-terminals.list`  (matte-black terminal; JetBrainsMono Nerd Font)
 - `doom`       → `~/.config/doom`, `~/.local/share/applications/emacs.desktop`  (Doom Emacs private config + the matte-black theme built from the Kitty palette, and the launcher entry that opens terminal Emacs; the framework itself is an untracked clone, see below)
 - `etc`        → `/etc/NetworkManager/conf.d` (root; applied by `make dns`, not stowed)
 
@@ -24,7 +24,7 @@ Not stowed: `etc/` (root config, applied by `make dns`) and `tests/` (`make test
 
 ## Deploy on a new machine
 ```sh
-sudo pacman -S --needed stow git adw-gtk-theme papirus-icon-theme kvantum kvantum-qt5 qt5ct qt6ct hyprland quickshell emacs-wayland ripgrep fd
+sudo pacman -S --needed stow git adw-gtk-theme papirus-icon-theme kvantum kvantum-qt5 qt5ct qt6ct hyprland quickshell kitty emacs-wayland ripgrep fd
 git clone git@github.com:sipesdev/dotfiles.git ~/Projects/dotfiles
 cd ~/Projects/dotfiles && bash install.sh   # or: make stow
 make dns                                    # root: Cloudflare DNS for every connection (etc/NetworkManager/conf.d/20-dns.conf)

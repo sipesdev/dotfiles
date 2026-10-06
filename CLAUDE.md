@@ -39,7 +39,7 @@ a package.
 - `gtk`        → `~/.config/gtk-3.0`, `gtk-4.0` (matte-black GTK3/GTK4 overrides — see theming below)
 - `qt`         → `~/.config/qt5ct`, `qt6ct`, `Kvantum` (Kvantum matte-black for Qt5/Qt6)
 - `uwsm`       → `~/.config/uwsm/env`           (login-phase session env; **activates** the Qt theme)
-- `kitty`      → `~/.config/kitty`              (matte-black terminal, the only one installed; `JetBrainsMono Nerd Font`, matches the Quickshell `Theme.qml` system font; Kitty graphics pass through herdr, so images render in panes)
+- `kitty`      → `~/.config/kitty`, `~/.config/xdg-terminals.list` (matte-black terminal, the only one installed; `JetBrainsMono Nerd Font`, matches the Quickshell `Theme.qml` system font; Kitty graphics pass through herdr, so images render in panes; xdg-terminals.list excludes kitty-open.desktop, Kitty's URL opener, which uwsm's terminal search would otherwise pick)
 - `steam`      → `~/.local/share/applications/steam.desktop` (shadows the vendor launcher so every entry point starts Steam with `-pipewire`, the Wayland portal capture path for Remote Play)
 - `doom`       → `~/.config/doom`, `~/.local/share/applications/emacs.desktop` (Doom Emacs private config + launcher entry; the framework is an untracked clone at `~/.config/emacs` — see Emacs below)
 - `agents`     → `~/.agents/skills`             (cross-harness agent skills; `make agents-setup` links them into `~/.claude/skills`)
