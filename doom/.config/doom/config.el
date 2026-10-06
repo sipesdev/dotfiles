@@ -21,7 +21,7 @@
 ;; See 'C-h v doom-font' for documentation and more examples of what they
 ;; accept. For example:
 ;;
-;; JetBrainsMono Nerd Font 11pt: the alacritty / Quickshell Theme.qml font. A float :size is
+;; JetBrainsMono Nerd Font 11pt: the kitty / Quickshell Theme.qml font. A float :size is
 ;; points (an integer would be pixels).
 (setq doom-font (font-spec :family "JetBrainsMono Nerd Font" :size 11.0))
 ;;
@@ -82,10 +82,10 @@
 ;; You can also try 'gd' (or 'C-c c d') to jump to their definition and see how
 ;; they are implemented.
 
-;; Terminal frames look like the GUI: Alacritty is truecolor and uses the same
+;; Terminal frames look like the GUI: Kitty is truecolor and uses the same
 ;; JetBrainsMono Nerd Font, so the matte-black theme paints identical colors and
 ;; the modeline icons render there too. The default face keeps the terminal's
-;; own background so Alacritty's opacity shows through.
+;; own background so Kitty's opacity shows through.
 (setq doom-modeline-icon t)
 (defun +matte/tty-transparent-bg (&optional frame)
   "Give terminal frames (FRAME or all of them) the terminal's own background."
@@ -101,9 +101,9 @@
 (setq vterm-always-compile-module t)
 
 ;; Mouse in every terminal frame. Emacs 31 turns xterm-mouse-mode on by itself
-;; only for terminals that pass its clipboard+mouse probe: Alacritty does, a
-;; herdr pane does not, and without the tracking request herdr keeps clicks for
-;; its own text selection instead of forwarding them to Emacs.
+;; only for terminals that pass its clipboard+mouse probe; a herdr pane does
+;; not, and without the tracking request herdr keeps clicks for its own text
+;; selection instead of forwarding them to Emacs.
 (xterm-mouse-mode 1)
 
 ;; Discord Rich Presence (elcord, over Vesktop's discord-ipc socket). The daemon

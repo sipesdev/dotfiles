@@ -1,6 +1,6 @@
-;;; matte-black-theme.el --- Doom theme from the Alacritty matte-black palette -*- lexical-binding: t; no-byte-compile: t; -*-
+;;; matte-black-theme.el --- Doom theme from the Kitty matte-black palette -*- lexical-binding: t; no-byte-compile: t; -*-
 ;; Derived from doom-one-theme.el (doom-themes, MIT License, Henrik Lissner).
-;; Palette = alacritty/.config/alacritty/alacritty.toml; keep the two in step.
+;; Palette = kitty/.config/kitty/kitty.conf; keep the two in step.
 ;;
 ;; Added: May 23, 2016 (28620647f838)
 ;; Author: Henrik Lissner <https://github.com/hlissner>
