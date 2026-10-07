@@ -10,7 +10,7 @@ Type=notify
 ExecStart=/usr/bin/emacs --fg-daemon
 # A tty frame's color depth comes from the daemon's own COLORTERM (the copy
 # emacsclient forwards is ignored), so without this `emacsclient -t` is stuck at
-# 256 colors. Every terminal here is Alacritty or tmux inside it, both truecolor.
+# 256 colors. Every terminal here is Kitty or a herdr/tmux pane inside it, all truecolor.
 Environment=COLORTERM=truecolor
 SuccessExitStatus=15
 Restart=on-failure

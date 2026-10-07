@@ -39,7 +39,7 @@ a package.
 - `gtk`        → `~/.config/gtk-3.0`, `gtk-4.0` (matte-black GTK3/GTK4 overrides — see theming below)
 - `qt`         → `~/.config/qt5ct`, `qt6ct`, `Kvantum` (Kvantum matte-black for Qt5/Qt6)
 - `uwsm`       → `~/.config/uwsm/env`           (login-phase session env; **activates** the Qt theme)
-- `alacritty`  → `~/.config/alacritty`          (matte-black terminal; `JetBrainsMono Nerd Font`, matches the Quickshell `Theme.qml` system font)
+- `kitty`      → `~/.config/kitty`, `~/.config/xdg-terminals.list` (matte-black terminal, the only one installed; `JetBrainsMono Nerd Font`, matches the Quickshell `Theme.qml` system font; Kitty graphics pass through herdr, so images render in panes; xdg-terminals.list excludes kitty-open.desktop, Kitty's URL opener, which uwsm's terminal search would otherwise pick)
 - `steam`      → `~/.local/share/applications/steam.desktop` (shadows the vendor launcher so every entry point starts Steam with `-pipewire`, the Wayland portal capture path for Remote Play)
 - `doom`       → `~/.config/doom`, `~/.local/share/applications/emacs.desktop` (Doom Emacs private config + launcher entry; the framework is an untracked clone at `~/.config/emacs` — see Emacs below)
 - `agents`     → `~/.agents/skills`             (cross-harness agent skills; `make agents-setup` links them into `~/.claude/skills`)
@@ -195,8 +195,8 @@ private config is tracked, as the stowed `doom` package → `~/.config/doom/{ini
 `doom sync` after editing `init.el` or `packages.el`; `config.el` edits need only a daemon restart
 (`systemctl --user restart emacs.service`) or `M-x doom/reload`; `doom upgrade` updates framework and
 packages; `doom doctor` when something is off. `config.el` sets `doom-font` to `JetBrainsMono Nerd Font`
-11pt (the alacritty / `Theme.qml` font); the theme is `matte-black`
-(`doom/.config/doom/themes/matte-black-theme.el`, derived from doom-one with the `alacritty.toml` palette
+11pt (the kitty / `Theme.qml` font); the theme is `matte-black`
+(`doom/.config/doom/themes/matte-black-theme.el`, derived from doom-one with the `kitty.conf` palette
 — change a color in one, change it in the other). Emacs writes through the stow symlinks (no atomic
 rename), but edit at the repo path anyway and run `stow-doctor` if a link looks stale.
 - **Daemon:** `systemd/.config/systemd/user/emacs.service` shadows the vendor unit so it is
@@ -207,16 +207,16 @@ rename), but edit at the repo path anyway and run `stow-doctor` if a link looks 
   (`~/.local/bin`, `~/.config/emacs/bin`) and uwsm/env the rest of the session variables.
 - **Editor:** `EDITOR`/`VISUAL` are `emacsclient -t` (login copy in `uwsm/env`, in-session copy in
   `modules/envs.lua`), so `git commit` and the `.zsh_agents` editor panes (`${EDITOR:-nvim} .`) open a terminal
-  frame on the daemon. `SUPER+SHIFT+E` opens an Alacritty running `emacsclient -t -a ''` (terminal Emacs is the default
+  frame on the daemon. `SUPER+SHIFT+E` opens a Kitty running `emacsclient -t -a ''` (terminal Emacs is the default
   everywhere; `emacsclient -c` still gives a GUI frame; `-a ''` starts a daemon if the unit is down).
 - **Terminal first, GUI-identical.** `emacs` in a shell is aliased to `emacsclient -t -a ''` and the
   launcher's "Emacs" entry (`doom/.local/share/applications/emacs.desktop`, shadowing the vendor one; "Emacs
-  (Client)" stays the GUI entry) runs the same Alacritty command as `SUPER+SHIFT+E`; Alacritty is truecolor
+  (Client)" stays the GUI entry) runs the same Kitty command as `SUPER+SHIFT+E`; Kitty is truecolor
   and uses the same Nerd Font, so a terminal frame paints the theme's exact colors (the unit exports
   `COLORTERM=truecolor`: Emacs sizes a tty frame's palette from the daemon's environment, not the client's,
   and without it `emacsclient -t` is 256-color), shows the modeline icons (`doom-modeline-icon t`) and, on
   Emacs 31, gets child-frame popups. `:os tty` gives it mouse, cursor shapes and OSC 52 clipboard. Terminal
-  frames keep the terminal's own background (`+matte/tty-transparent-bg` in `config.el`) so Alacritty's
+  frames keep the terminal's own background (`+matte/tty-transparent-bg` in `config.el`) so Kitty's
   opacity shows through; solaire-mode is disabled in `packages.el`, so the dashboard, popups and sidebars
   keep that same background instead of `bg-alt` (an opaque darker block in terminal frames otherwise).
 - **Terminal inside Emacs:** `:term vterm` (`SPC o t` popup, `SPC o T` here). Its native `vterm-module.so` is
@@ -256,7 +256,7 @@ rename), but edit at the repo path anyway and run `stow-doctor` if a link looks 
   `key\tvalue` lines; nothing when there is no route.
 - `agent` — launches the default coding agent auto-approved: the harness named in `~/.config/agent/default`,
   else the first of claude/codex/gemini on `PATH`. `--inline` stays in the current terminal, `--prompt "..."`
-  seeds the first message; otherwise it opens a floating alacritty (class `agent-tui`, see the window rule).
+  seeds the first message; otherwise it opens a floating kitty (class `agent-tui`, see the window rule).
   It does **not** `cd` anywhere — launching from `$HOME` starts the agent in `$HOME` (by request; Omarchy
   hopped to `~/Projects` to dodge the harness's workspace-trust prompt, an accepted trade-off here).
 - `agent-crash` — `agent-crash <pid> [name] [signal]`: turns a coredump PID into an AI diagnosis. Adds
@@ -287,9 +287,11 @@ rename), but edit at the repo path anyway and run `stow-doctor` if a link looks 
 function opens with `emulate -L ksh` so the upstream bash (0-based arrays, word splitting) ports verbatim —
 keep that line if you edit one. One deliberate divergence: `hdl`/`hds` end the editor pane's command with
 `; exec ${SHELL:-zsh}` so quitting the editor drops to a shell instead of tearing the pane down (the tmux
-twins type into a persistent shell already and need no such thing). herdr is not installed here and no
-layout has been run end to end; panes that start optional tools (hunk, opencode) just print
-command-not-found.
+twins type into a persistent shell already and need no such thing). herdr (`herdr-bin`) is installed and
+is the daily multiplexer, run inside Kitty; its config (`~/.config/herdr/config.toml`) is not tracked. In a
+bare Kitty shell (`TERM=xterm-kitty`) `ssh` is `kitten ssh`, which copies Kitty's terminfo to the host;
+herdr panes are `xterm-256color` and keep plain ssh. Panes that start optional tools (hunk, opencode) just
+print command-not-found.
 
 ## Conventions
 - **No emojis in any source file or comment** — hard rule, no exceptions.

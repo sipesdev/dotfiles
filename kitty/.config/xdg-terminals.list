@@ -1,0 +1,5 @@
+# Read by uwsm (uwsm-terminal, uwsm app -T, Terminal=true entries). Kitty ships a
+# second TerminalEmulator entry, kitty-open.desktop (its URL opener, kitty +open),
+# which uwsm's terminal search would otherwise pick first and hand a command it
+# cannot run. Excluding it leaves kitty.desktop to be auto-detected.
+-kitty-open.desktop

@@ -28,7 +28,7 @@ zstyle ':completion:*' list-colors ${(s.:.)LS_COLORS}       # colourise the matc
 zstyle ':completion:*:descriptions' format '%F{214}%d%f'    # orange group headers
 
 # ── Key bindings ─────────────────────────────────────────────────────
-# xterm/DEC sequences, matching Alacritty (TERM=xterm-256color).
+# xterm/DEC sequences: Kitty's legacy key encoding (TERM=xterm-kitty) and herdr panes (TERM=xterm-256color).
 # Word jumping
 bindkey '^[[1;5C' forward-word      # Ctrl+Right
 bindkey '^[[1;5D' backward-word     # Ctrl+Left
@@ -85,6 +85,7 @@ alias grep='grep --color=auto'
 alias ..='cd ..'
 alias ff='fastfetch'
 alias emacs="emacsclient -t -a ''"   # terminal Emacs on the daemon; \emacs runs the bare binary
+[[ $TERM == xterm-kitty ]] && alias ssh='kitten ssh'   # bare Kitty: copy its terminfo to the host on first connect; herdr panes (xterm-256color) keep plain ssh
 
 # Add ~/.local/bin to PATH (web2app, wifi-connect, etc.)
 case ":$PATH:" in *":$HOME/.local/bin:"*) ;; *) export PATH="$HOME/.local/bin:$PATH" ;; esac

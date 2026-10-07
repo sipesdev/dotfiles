@@ -8,11 +8,11 @@ local mod = "SUPER"
 local home = os.getenv("HOME")
 
 -- Programs
-local terminal = "alacritty"
+local terminal = "kitty"
 local files    = "nautilus"
 local browser  = "brave"
 local launcher = "walker"
-local editor   = "alacritty --class emacs -e emacsclient -t -a ''"   -- terminal Emacs on the daemon (emacs.service); -a '' starts one if it is down
+local editor   = "kitty --class emacs emacsclient -t -a ''"   -- terminal Emacs on the daemon (emacs.service); -a '' starts one if it is down
 
 -- ── Applications (SUPER + SHIFT + letter) ─────────────────────────────
 hl.bind(mod .. " + SHIFT + T", hl.dsp.exec_cmd(terminal), { description = "Terminal" })

@@ -15,7 +15,7 @@ local share = 0.5
 -- workspace it came from while misc.initial_workspace_tracking is on. Class
 -- agent-console, NOT agent-tui: the float-agent-tui rule must not float this
 -- window -- the console tiles to fill the workspace the gaps below shape.
-local seed = "[workspace special:console silent] alacritty --class agent-console -e "
+local seed = "[workspace special:console silent] kitty --class agent-console "
     .. home .. "/.local/bin/agent --inline"
 
 -- Dimming only applies while a special workspace is open, so the console gets

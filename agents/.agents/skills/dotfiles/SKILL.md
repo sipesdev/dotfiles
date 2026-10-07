@@ -4,7 +4,7 @@ description: >
   How this machine's desktop and system configuration works and how to change
   it safely. Use for ANY request to customize or debug the desktop: Hyprland
   (keybinds, gaps, window rules, monitors, animations), the Quickshell bar,
-  drawers, or notifications, GTK/Qt theming, the terminal (alacritty),
+  drawers, or notifications, GTK/Qt theming, the terminal (kitty),
   backlight, audio, Wi-Fi/Bluetooth behavior, or helper scripts in ~/.local/bin.
 ---
 
