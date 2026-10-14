@@ -84,6 +84,8 @@ alias la='command ls -A  --color=auto'   # all files, columnar
 alias grep='grep --color=auto'
 alias ..='cd ..'
 alias ff='fastfetch'
+alias il='inhibit-lock'   # hold off idle dim/lock/dpms-off; optional reason: il "long build"
+alias rl='release-lock'
 alias emacs="emacsclient -t -a ''"   # terminal Emacs on the daemon; \emacs runs the bare binary
 [[ $TERM == xterm-kitty ]] && alias ssh='kitten ssh'   # bare Kitty: copy its terminfo to the host on first connect; herdr panes (xterm-256color) keep plain ssh
 

@@ -1,0 +1,10 @@
+#!/bin/sh
+# release-lock -- drop the idle lock taken by inhibit-lock, handing idle dim,
+# lock and dpms-off back to hypridle.
+unit=inhibit-lock
+
+if systemctl --user is-active --quiet "$unit"; then
+    systemctl --user stop "$unit" && echo "Idle lock released"
+else
+    echo "No idle lock held"
+fi

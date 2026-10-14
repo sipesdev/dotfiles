@@ -249,6 +249,10 @@ rename), but edit at the repo path anyway and run `stow-doctor` if a link looks 
   eGPU is on the PCI bus, `--displays` = a monitor is attached to it. Both are exported by `uwsm/env`.
 - `egpu-dpms-guard` — hypridle's dpms-off gate: skips the off only while docked with eDP-1 still
   enabled (the aquamarine#324 wedge), otherwise the dpms-off runs.
+- `inhibit-lock [reason...]` / `release-lock` (zsh aliases `il` / `rl`) — take / drop a logind `idle`
+  block lock held by the transient user unit `inhibit-lock.service`, so it outlives the terminal. hypridle
+  honours it (`ignore_systemd_inhibit` defaults false): no dim, lock or dpms-off while held; sleep and
+  lid-close are untouched. Re-running `inhibit-lock` swaps the reason. Check with `systemd-inhibit --list`.
 - `archwiki` — searches/renders the offline Arch Wiki (`arch-wiki-docs` package, mirror under
   `/usr/share/doc/arch-wiki/html/en`). `archwiki <query>` searches, `-t` titles only, `-r` renders an
   article to plain text via `python` (no lynx/w3m/pandoc on this box).

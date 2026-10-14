@@ -1,0 +1,26 @@
+#!/bin/sh
+# inhibit-lock -- keep the session from idling into the lock screen.
+#
+# Takes a logind "idle" block lock, which hypridle honours (its
+# ignore_systemd_inhibit defaults to false): while it is held none of the
+# hypridle.conf listeners fire -- no dim, no lock, no dpms-off. Sleep is left
+# alone, so closing the lid undocked still suspends (and locks first).
+#
+# The lock is held by a transient user unit rather than this shell, so it
+# outlives the terminal that took it; `release-lock` stops the unit. Running
+# inhibit-lock again while held swaps in the new reason.
+#
+# Usage: inhibit-lock [reason...]
+unit=inhibit-lock
+why=${*:-manual idle inhibit}
+
+systemctl --user is-active --quiet "$unit" && systemctl --user stop "$unit"
+systemd-run --user --quiet --collect --unit="$unit" \
+    --description="Idle lock inhibited: $why" \
+    systemd-inhibit \
+        --what=idle \
+        --who="inhibit-lock" \
+        --why="$why" \
+        --mode=block \
+        sleep infinity || exit
+printf 'Idle lock inhibited: %s (release-lock to undo)\n' "$why"
