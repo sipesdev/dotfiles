@@ -45,6 +45,7 @@ Singleton {
         if (calcExpr === "") return;
         ranExpr = calcExpr;
         qalc.running = true;
+        qalcLimit.restart();
     }
 
     onCalcExprChanged: {
@@ -58,6 +59,7 @@ Singleton {
         command: ["qalc", "-t", "-s", "unicode off", "--", launcher.ranExpr]
         stdout: StdioCollector { id: qalcOut }
         onExited: {
+            qalcLimit.stop();
             if (launcher.ranExpr === launcher.calcExpr)
                 launcher.calcText = LauncherModel.calcResult(launcher.ranExpr, qalcOut.text);
             else
@@ -65,8 +67,17 @@ Singleton {
         }
     }
 
-    // One throwaway run per shell start refreshes qalc's cached exchange rates, which is what
-    // Elephant's calculator did at its own start, so the first currency query is not stale.
+    // qalc has no time limit of its own (its -m prints "aborted" as if it were a result), and a
+    // runaway expression such as 100000000! would queue every later one behind it and keep a core
+    // busy. SIGTERM ends it; onExited then hides the row or moves on to the current expression.
+    Timer {
+        id: qalcLimit
+        interval: 2000
+        onTriggered: qalc.running = false
+    }
+
+    // One throwaway run per shell start refreshes qalc's cached exchange rates, so the first
+    // currency query is not answered from a stale cache.
     Component.onCompleted: Quickshell.execDetached(["qalc", "-e", "1+1"])
 
     IpcHandler {

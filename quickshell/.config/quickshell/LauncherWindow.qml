@@ -42,7 +42,8 @@ PanelWindow {
 
     anchors { top: true; bottom: true; left: true; right: true }
     color: "transparent"
-    exclusiveZone: 0
+    // No exclusiveZone here: setting one forces exclusionMode back to Normal, which would put the
+    // overlay below the bar.
     exclusionMode: ExclusionMode.Ignore
     WlrLayershell.layer: WlrLayer.Overlay
     // Exclusive for the whole time the surface is mapped: switching modes while mapped makes
@@ -75,6 +76,9 @@ PanelWindow {
     onVisibleChanged: {
         if (visible) {
             selected = 0;
+            lastHover = null;
+            // open() with an unchanged empty query emits no queryChanged, so reset the scroll here.
+            list.positionViewAtBeginning();
             field.forceActiveFocus();
         }
     }
@@ -83,6 +87,11 @@ PanelWindow {
     readonly property bool hasCalc: Launcher.calcText !== ""
     readonly property var rows: (hasCalc ? [null] : []).concat(Launcher.apps)
     property int selected: 0
+    // Scene position of the last hover event. Rebuilt delegates (every keystroke) and a surface
+    // mapping under a parked cursor get a synthetic hover from Qt at the unchanged position, which
+    // must not steal the keyboard selection; only a position that differs counts as motion. Null
+    // after open, so the first event only records where the pointer is.
+    property var lastHover: null
 
     function activate(i) {
         if (i < 0 || i >= rows.length) return;
@@ -191,7 +200,7 @@ PanelWindow {
             visible: win.rows.length > 0
             clip: true
             spacing: win.rowSpacing
-            interactive: false
+            interactive: contentHeight > height
             model: win.rows
 
             delegate: Item {
@@ -304,9 +313,14 @@ PanelWindow {
                     anchors.fill: parent
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
-                    // positionChanged, not entered: a list appearing under a still cursor must not
-                    // steal the selection from the keyboard.
-                    onPositionChanged: win.selected = row.index
+                    // positionChanged, not entered, and only on real motion (see lastHover): a list
+                    // appearing under a still cursor must not steal the selection from the keyboard.
+                    onPositionChanged: mouse => {
+                        var p = mapToItem(null, mouse.x, mouse.y);
+                        var last = win.lastHover;
+                        win.lastHover = p;
+                        if (last && (last.x !== p.x || last.y !== p.y)) win.selected = row.index;
+                    }
                     onClicked: win.activate(row.index)
                 }
             }
