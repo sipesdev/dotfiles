@@ -23,6 +23,13 @@ PanelWindow {
     function closePopout(key)  { if (openPopout === key) openPopout = ""; }
     readonly property bool popoutOpen: openPopout !== ""
 
+    // The launcher takes Exclusive keyboard focus. An open drawer's focus grab must not outlive
+    // that, so opening the launcher closes whatever popout is out.
+    Connections {
+        target: Launcher
+        function onOpenedChanged() { if (Launcher.opened) bar.openPopout = "" }
+    }
+
     // ── LEFT: Arch launcher + workspaces ─────────────────────────────
     Row {
         id: left

@@ -1,5 +1,4 @@
 import QtQuick
-import Quickshell.Io
 
 Item {
     id: root
@@ -26,11 +25,6 @@ Item {
         anchors.fill: parent
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
-        onClicked: launcher.running = true
-    }
-
-    Process {
-        id: launcher
-        command: ["walker"]   // opens via the running gapplication-service
+        onClicked: Launcher.toggle()
     }
 }
