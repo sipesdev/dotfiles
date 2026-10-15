@@ -60,3 +60,9 @@
 ;; Discord Rich Presence through Vesktop's IPC socket; config.el ties it to open
 ;; client frames.
 (package! elcord)
+
+;; LSP diagnostics through flycheck. :checkers syntax is flycheck here, and
+;; Doom's +eglot keeps eglot out of flymake in that case, so without this bridge
+;; eglot's diagnostics would reach neither checker. Doom's eglot config turns on
+;; `global-flycheck-eglot-mode' by itself as soon as the package is installed.
+(package! flycheck-eglot)
