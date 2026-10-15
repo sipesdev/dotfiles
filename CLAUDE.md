@@ -169,9 +169,10 @@ tested by `make test` (`tests/quickshell/launchermodel.test.js`). Enter launches
 - **Calculator row:** a bare query only counts as math when it has a digit plus an operator, a paren or
   ` to ` (so `steam 2` or a year does not spawn `qalc`); a leading `=` forces it for anything. It runs
   `qalc -t -s "unicode off" -- <expr>`, one process at a time, latest expression wins, and the previous
-  result stays up until the new one lands. Enter on the row copies the result with `wl-copy -n`. A
-  one-off `qalc -e 1+1` at shell start refreshes the cached exchange rates (what Elephant's calculator
-  did), so the first currency query is not stale.
+  result stays up until the new one lands. Each run is capped at 2 s (`qalcLimit`, SIGTERM; qalc's own
+  `-m` would print `aborted` as if it were a result), after which the row hides. Enter on the row copies
+  the result with `wl-copy -n`. A one-off `qalc -e 1+1` at shell start refreshes the cached exchange
+  rates (what Elephant's calculator did), so the first currency query is not stale.
 - **Control:** `qs ipc call launcher toggle|open|close` (the Hyprland bind runs `toggle`, so a repeat
   press closes it, like Walker's `close_when_open`).
 - **Window:** Overlay layer with Exclusive keyboard focus held the whole time it is mapped (switching
