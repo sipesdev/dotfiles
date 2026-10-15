@@ -11,7 +11,7 @@ local home = os.getenv("HOME")
 local terminal = "kitty"
 local files    = "nautilus"
 local browser  = "brave"
-local launcher = "walker"
+local launcher = "qs ipc call launcher toggle"   -- the Quickshell launcher owns the toggle (open on the first press, close on a repeat)
 local editor   = "kitty --class emacs emacsclient -t -a ''"   -- terminal Emacs on the daemon (emacs.service); -a '' starts one if it is down
 
 -- ── Applications (SUPER + SHIFT + letter) ─────────────────────────────

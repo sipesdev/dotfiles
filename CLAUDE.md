@@ -112,7 +112,7 @@ classic hyprlang forms like `hyprctl dispatch dpms off` fail to parse on this bu
 **Reload:** `hyprctl reload`.
 
 ## Quickshell (`quickshell/`) — 0.3.0, hand-written QML
-No `qmldir`. `Theme.qml`, `Sys.qml` and `Notifs.qml` are `pragma Singleton`, auto-resolved by filename.
+No `qmldir`. `Theme.qml`, `Sys.qml`, `Notifs.qml` and `Launcher.qml` are `pragma Singleton`, auto-resolved by filename.
 `shell.qml` carries `//@ pragma UseQApplication` (required for native SNI tray context menus). `Sys.qml`
 holds cross-component state (ethernet/Wi-Fi hand-off, native NetworkManager and BlueZ state; auto-brightness owns the `autobrightness`
 process).
@@ -150,12 +150,36 @@ retry when a collector advises one, and `launchAgentTerminal()`); the agents pil
 record reports `ready`, and right-clicking it launches the agent terminal. Primitives: `DrawerHero`,
 `SectionHeader`, `ListRow`, `SliderRow`, `TogglePill`/`ToggleRow`, `Pill`, `PowerBtn`, `BarSlider`. Logic
 that can be pure lives in `NetModel.js` / `AudioModel.js` / `PowerModel.js` / `BtModel.js` /
-`AgentModel.js` / `ListSync.js` (in-place `ListModel` updates, so list delegates and their hover survive a
+`AgentModel.js` / `LauncherModel.js` / `ListSync.js` (in-place `ListModel` updates, so list delegates and their hover survive a
 refresh) and is tested by `make test` — node over `tests/quickshell/`, python over `tests/agents/` (the
 collectors' pure functions); both trees sit deliberately outside every stow package. The network drawer
 polls `~/.local/bin/network-probe` (1.5 s) only while open; the agents drawer asks Sys for a
 `--limits-only` refresh when it opens and a `--force` one from its header refresh button (dimmed, and a
 no-op, while an update is already running).
+
+### Launcher (`Launcher.qml` / `LauncherWindow.qml`)
+The app launcher (`SUPER+SPACE`, and the Arch button in the bar) replaces Walker and its Elephant backend:
+neither is bound or started any more, so nothing outside Quickshell is involved. `Launcher.qml` is a
+`pragma Singleton` owning `opened` / `query` / `apps` / `calcExpr` / `calcText`; `LauncherWindow.qml` is
+its view, one fullscreen `PanelWindow` declared once in `shell.qml` that shows on the focused monitor. It
+lists **apps only** (`DesktopEntries`), ranked by `LauncherModel.js`, whose search half is ported from
+`basecamp/omarchy` (`shell/services/AppSearch.js`, MIT) so scoring matches Omarchy; the pure logic is
+tested by `make test` (`tests/quickshell/launchermodel.test.js`). Enter launches through
+`uwsm-app -- <id>.desktop`, so the app is its own systemd scope and outlives the shell.
+- **Calculator row:** a bare query only counts as math when it has a digit plus an operator, a paren or
+  ` to ` (so `steam 2` or a year does not spawn `qalc`); a leading `=` forces it for anything. It runs
+  `qalc -t -s "unicode off" -- <expr>`, one process at a time, latest expression wins, and the previous
+  result stays up until the new one lands. Enter on the row copies the result with `wl-copy -n`. A
+  one-off `qalc -e 1+1` at shell start refreshes the cached exchange rates (what Elephant's calculator
+  did), so the first currency query is not stale.
+- **Control:** `qs ipc call launcher toggle|open|close` (the Hyprland bind runs `toggle`, so a repeat
+  press closes it, like Walker's `close_when_open`).
+- **Window:** Overlay layer with Exclusive keyboard focus held the whole time it is mapped (switching
+  modes while mapped makes Hyprland refocus the surface). `Launcher.opened` becoming true makes
+  `Bar.qml` close any open drawer, so a popout never sits under the overlay.
+- Every desktop-entry string, the query and the qalc output are `textFormat: Text.PlainText`
+  (`.desktop` files are third-party). Like everything under `quickshell/`, restart Quickshell and check
+  the log after an edit.
 
 ### Notifications (`Notifs.qml`) — Quickshell owns the bus, not mako
 `Notifs.qml` is the notification daemon: it owns `org.freedesktop.Notifications`, caps Normal and Low
