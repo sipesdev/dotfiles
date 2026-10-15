@@ -127,3 +127,22 @@
 (when (daemonp)
   (add-hook 'server-after-make-frame-hook #'+matte/elcord-sync)
   (add-hook 'delete-frame-functions #'+matte/elcord-sync))
+
+;; Tree-sitter grammars. Doom pins one revision per grammar to the ts-modes that
+;; ship with this Emacs and compiles them into the profile's data dir
+;; (~/.config/emacs/.local/etc/tree-sitter), so pacman's tree-sitter-* packages
+;; play no part. Compile a missing grammar on first open instead of prompting:
+;; a fresh machine then needs only git and cc. `M-x
+;; treesit-install-language-grammar' rebuilds one by hand.
+(setq treesit-auto-install-grammar 'always)
+
+;; LSP servers (eglot). Pin the server per language where eglot's default list
+;; is an ordered guess over whatever is on PATH: for Python it would try pylsp
+;; and basedpyright before pyright, for C# omnisharp before csharp-ls. Rust and
+;; TypeScript keep eglot's single default (rust-analyzer,
+;; typescript-language-server). pyright, typescript-language-server and
+;; rust-analyzer are pacman packages; csharp-ls is from the AUR.
+(after! python
+  (set-eglot-client! '(python-mode python-ts-mode) '("pyright-langserver" "--stdio")))
+(after! csharp-mode
+  (set-eglot-client! '(csharp-mode csharp-ts-mode) '("csharp-ls")))

@@ -228,8 +228,38 @@ rename), but edit at the repo path anyway and run `stow-doctor` if a link looks 
   `WantedBy=`/`PartOf=graphical-session.target` — it starts after uwsm has exported the session env
   (`WAYLAND_DISPLAY`, the Qt/GTK vars) and stops at logout, like `crash-watch`. Enabled once via
   `make emacs-setup`. No Doom envvar file (`doom install --no-env`): the daemon inherits the systemd
-  user manager's environment, which `environment.d/10-path.conf` gives the shells' PATH prefix
-  (`~/.local/bin`, `~/.config/emacs/bin`) and uwsm/env the rest of the session variables.
+  user manager's environment. Its PATH is the one uwsm exports at session start (PATH is in uwsm's
+  always-export set, taken from the login shell that ran `uwsm start`, i.e. before `.zshrc`), so
+  `uwsm/env` prepends `~/.local/bin` and `~/.config/emacs/bin` there; `environment.d/10-path.conf`
+  sets the same prefix for the manager before uwsm runs but is overwritten by that export. The rest
+  of the session variables come from uwsm/env too. Verify with `systemctl --user show-environment |
+  grep ^PATH` (login-phase: a change needs a re-login).
+- **Languages (LSP + tree-sitter):** `init.el` enables `:tools (lsp +eglot)` and `tree-sitter`, and
+  `(csharp|javascript|python|rust +lsp +tree-sitter)`; TypeScript/TSX live in the `javascript` module
+  (`typescript-ts-mode`/`tsx-ts-mode`). The client is **eglot** (built into Emacs; lighter than
+  lsp-mode, uses eldoc/xref/capf/project.el, pairs with corfu). Servers are plain executables on the
+  daemon's PATH: `pyright`, `typescript-language-server`, `rust-analyzer` from pacman and `csharp-ls`
+  from the AUR (depends on dotnet-sdk-10.0; eglot has no built-in client for Microsoft's
+  roslyn-language-server, which needs a `solution/open` handshake, so csharp-ls is the eglot-native
+  choice; omnisharp is in maintenance). `config.el` pins Python to pyright and C# to csharp-ls with
+  `set-eglot-client!` because eglot's default list is an ordered guess over PATH (pylsp and
+  basedpyright before pyright, omnisharp before csharp-ls); Rust and TypeScript keep eglot's single
+  default. typescript-language-server bundles no TypeScript: it resolves the workspace's
+  `node_modules/typescript` or, failing that, pacman's `typescript` (6.x, JS-based, has
+  `lib/tsserver.js`); an npm-global `typescript@7` (the Go port) has no tsserver.js and makes it
+  fail `initialize` with "Could not find a valid TypeScript installation". The nvm/npm-global copies
+  of pyright and typescript-language-server are not on the daemon's PATH and play no part. Diagnostics: `:checkers syntax` is flycheck, and Doom's `+eglot` keeps eglot out of flymake
+  in that case, so `packages.el` adds `flycheck-eglot` (Doom's eglot config turns
+  `global-flycheck-eglot-mode` on by itself once the package exists) — without it LSP diagnostics
+  reach neither checker. Grammars: Doom's tree-sitter module pins one revision per grammar to this
+  Emacs's ts-modes and compiles them with git + cc into `~/.config/emacs/.local/etc/tree-sitter/`
+  (pacman's `tree-sitter-*` packages are not used); `treesit-auto-install-grammar` is `always` in
+  `config.el`, so a missing grammar is compiled on the first open of that language (one-time, blocks
+  for some seconds) instead of prompting. Only the four flagged languages are remapped to ts-modes;
+  `json`/`yaml`/`sh` keep their non-tree-sitter modes until they get the flag. Adding a language: give
+  its `:lang` module `+lsp +tree-sitter`, install its server with pacman/AUR, `doom sync`, restart the
+  daemon. Check a buffer with `M-x +tree-sitter/doctor` and `M-x eglot` (or `SPC c l`); after a
+  module change, `doom doctor` lists missing servers.
 - **Editor:** `EDITOR`/`VISUAL` are `emacsclient -t` (login copy in `uwsm/env`, in-session copy in
   `modules/envs.lua`), so `git commit` and the `.zsh_agents` editor panes (`${EDITOR:-nvim} .`) open a terminal
   frame on the daemon. `SUPER+SHIFT+E` opens a Kitty running `emacsclient -t -a ''` (terminal Emacs is the default
