@@ -47,4 +47,4 @@ DESKTOP
 
 update-desktop-database "$apps" 2>/dev/null || true
 echo "Created '${name}' -> ${url}"
-echo "Launch it from Walker (Super+Space, search '${name}')."
+echo "Launch it from the launcher (Super+Space, search '${name}')."

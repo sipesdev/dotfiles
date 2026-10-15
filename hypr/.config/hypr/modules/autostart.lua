@@ -34,8 +34,4 @@ hl.on("hyprland.start", function()
     -- Clipboard history daemon (cliphist)
     hl.exec_cmd("wl-paste --type text  --watch cliphist store")
     hl.exec_cmd("wl-paste --type image --watch cliphist store")
-
-    -- App launcher: Elephant backend (idempotent) + Walker service (open with `walker`)
-    hl.exec_cmd("systemctl --user start elephant.service")
-    hl.exec_cmd("walker --gapplication-service")
 end)
