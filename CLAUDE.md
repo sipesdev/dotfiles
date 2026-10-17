@@ -376,3 +376,5 @@ runtime (the Network drawer's inline prompt hands a Wi-Fi key to NetworkManager 
 `connectWithPsk`, never on a command line), nothing is hardcoded. Keep it that way.
 - **System files (`etc/`)** are not stowed: `make dns` installs `etc/NetworkManager/conf.d/20-dns.conf`
   with sudo (Cloudflare global DNS, no switcher by design); verify with `grep nameserver /etc/resolv.conf`.
+  Root-owned files changed in place without being tracked (`/etc`, the ESP) are recorded in
+  `docs/system-changes.md`, newest first; add an entry for every such change.

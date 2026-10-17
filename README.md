@@ -20,7 +20,7 @@ This is my personally managed dotfiles for my Arch Linux installation. It comes 
 - `doom`       → `~/.config/doom`, `~/.local/share/applications/emacs.desktop`  (Doom Emacs private config + the matte-black theme built from the Kitty palette, and the launcher entry that opens terminal Emacs; the framework itself is an untracked clone, see below)
 - `etc`        → `/etc/NetworkManager/conf.d` (root; applied by `make dns`, not stowed)
 
-Not stowed: `etc/` (root config, applied by `make dns`) and `tests/` (`make test` runs the pure-JS models behind the bar).
+Not stowed: `etc/` (root config, applied by `make dns`), `docs/` (`system-changes.md` records changes to untracked system files) and `tests/` (`make test` runs the pure-JS models behind the bar).
 
 ## Deploy on a new machine
 ```sh
