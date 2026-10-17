@@ -175,9 +175,12 @@ tested by `make test` (`tests/quickshell/launchermodel.test.js`). Enter launches
   rates (what Elephant's calculator did), so the first currency query is not stale.
 - **Control:** `qs ipc call launcher toggle|open|close` (the Hyprland bind runs `toggle`, so a repeat
   press closes it, like Walker's `close_when_open`).
-- **Window:** Overlay layer with Exclusive keyboard focus held the whole time it is mapped (switching
-  modes while mapped makes Hyprland refocus the surface). `Launcher.opened` becoming true makes
-  `Bar.qml` close any open drawer, so a popout never sits under the overlay.
+- **Window:** Overlay layer that fades in and out over `Theme.animMed` (`reveal`, as in `BarDrawer`:
+  the surface stays mapped until the fade-out ends). Keyboard focus is Exclusive only while open and
+  drops to None the moment it closes: Hyprland refuses focus to a window that maps under an exclusive
+  layer and hands it back to the previous window on unmap, so holding it through the fade would open a
+  fast app unfocused (measured 2026-10-16). `Launcher.opened` becoming true makes `Bar.qml` close any
+  open drawer, so a popout never sits under the overlay.
 - Every desktop-entry string, the query and the qalc output are `textFormat: Text.PlainText`
   (`.desktop` files are third-party). Like everything under `quickshell/`, restart Quickshell and check
   the log after an edit.

@@ -37,8 +37,19 @@ PanelWindow {
         return false;
     }
 
+    // How far the launcher is faded in: 0 = gone, 1 = fully shown. As with BarDrawer's reveal,
+    // the surface stays mapped until the fade-out finishes, and onVisibleChanged drops the
+    // screen once it has. reveal runs linearly and `fade` applies OutCubic to it, so the fade-out
+    // is the fade-in played backwards. Easing reveal itself would ease both directions the same
+    // way, leaving the card a faint ghost for the last half of the fade-out (a close that reads
+    // slower than the open); switching the easing by direction loses a binding race to the
+    // Behavior, which starts with the previous direction's curve.
+    property real reveal: Launcher.opened ? 1 : 0
+    Behavior on reveal { NumberAnimation { duration: Theme.animMed } }
+    readonly property real fade: 1 - Math.pow(1 - reveal, 3)
+
     screen: targetScreen
-    visible: Launcher.opened && targetScreen !== null
+    visible: (Launcher.opened || reveal > 0) && targetScreen !== null
 
     anchors { top: true; bottom: true; left: true; right: true }
     color: "transparent"
@@ -46,16 +57,28 @@ PanelWindow {
     // overlay below the bar.
     exclusionMode: ExclusionMode.Ignore
     WlrLayershell.layer: WlrLayer.Overlay
-    // Exclusive for the whole time the surface is mapped: switching modes while mapped makes
-    // Hyprland refocus the surface (see BarDrawer). The default namespace is kept so the
-    // quickshell-noanim layer rule applies.
-    WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
+    // Exclusive only while open, so the keyboard is handed back the moment the fade-out starts:
+    // Hyprland refuses focus to a window that maps under an exclusive layer and returns it to the
+    // previous window on unmap, so an app quick enough to map mid-fade would open unfocused. The
+    // switch makes Hyprland refocus, which is what a close (or a reopen mid-fade) wants. The
+    // default namespace is kept so the quickshell-noanim layer rule applies, and Hyprland's own
+    // layer fade does not run on top of this one.
+    WlrLayershell.keyboardFocus: Launcher.opened ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
 
     Connections {
         target: Launcher
         function onOpenedChanged() {
-            if (Launcher.opened) win.targetScreen = win.resolveScreen();
-            else win.targetScreen = null;
+            if (!Launcher.opened) return;
+            var s = win.resolveScreen();
+            // Reopened mid-fade on the same monitor: the surface never unmapped, so
+            // onVisibleChanged will not reset the view. A fade still running on another monitor
+            // unmaps there first.
+            if (win.visible && s === win.targetScreen) {
+                win.resetView();
+            } else {
+                win.targetScreen = null;
+                win.targetScreen = s;
+            }
         }
         function onQueryChanged() {
             if (field.text !== Launcher.query) field.text = Launcher.query;
@@ -64,23 +87,29 @@ PanelWindow {
         }
     }
 
-    // A monitor unplugged under the open launcher would leave a surface with no output.
+    // A monitor unplugged under the open (or fading) launcher would leave a surface with no
+    // output, so it unmaps at once.
     Connections {
         target: Quickshell
         function onScreensChanged() {
-            if (Launcher.opened && win.targetScreen && !win.screenPresent(win.targetScreen))
+            if (win.targetScreen && !win.screenPresent(win.targetScreen)) {
+                win.targetScreen = null;
                 Launcher.close();
+            }
         }
     }
 
     onVisibleChanged: {
-        if (visible) {
-            selected = 0;
-            lastHover = null;
-            // open() with an unchanged empty query emits no queryChanged, so reset the scroll here.
-            list.positionViewAtBeginning();
-            field.forceActiveFocus();
-        }
+        if (visible) resetView();
+        else targetScreen = null;
+    }
+
+    function resetView() {
+        selected = 0;
+        lastHover = null;
+        // open() with an unchanged empty query emits no queryChanged, so reset the scroll here.
+        list.positionViewAtBeginning();
+        field.forceActiveFocus();
     }
 
     // ── Rows: the calc row first when there is a result, then the apps ──
@@ -94,7 +123,9 @@ PanelWindow {
     property var lastHover: null
 
     function activate(i) {
-        if (i < 0 || i >= rows.length) return;
+        // The overlay still takes clicks while it fades out, so the second click of a
+        // double-click must not launch the app again.
+        if (!Launcher.opened || i < 0 || i >= rows.length) return;
         if (hasCalc && i === 0) Launcher.copyCalc();
         else Launcher.launch(rows[i]);
     }
@@ -124,6 +155,7 @@ PanelWindow {
         y: card.y
         width: card.width
         height: card.height
+        opacity: win.fade
     }
 
     Rectangle {
@@ -132,6 +164,7 @@ PanelWindow {
         height: 2 * win.cardPad + win.fieldHeight + Theme.pad + win.listHeight
         x: Math.round((parent.width - width) / 2)
         y: Math.max(0, Math.round((parent.height - win.fullCardHeight) / 2))
+        opacity: win.fade
         radius: Theme.radius
         color: Theme.bar
         border.width: 1
