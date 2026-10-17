@@ -66,8 +66,8 @@ and `hypr/modules/envs.lua` (in-session).
   menus. Earlier bases were rejected: `KvDark` was 3D/beveled; `KvGnomeDark` had blue baked into its
   SVG and non-rounded menus. Both `MatteBlack.svg` and `MatteBlack.kvconfig` are **real files** (not
   symlinks; self-contained, won't auto-update on `kvantum` upgrades) that were **recolored** from
-  KvLibadwaita's mid-grey + blue to the matte `#121212` ramp + `#e68e0d` orange accent. The recolor
-  is reproducible via `scratchpad/recolor.py` (single-pass regex hex remap of the SVG + kvconfig).
+  KvLibadwaita's mid-grey + blue to the matte `#121212` ramp + `#e68e0d` orange accent by a
+  single-pass regex hex remap of the SVG + kvconfig; the script that did it is not in this repo.
   KvLibadwaita is a user-space theme (no system package); it is NOT a dependency once vendored.
 - **Reload:** GTK/Qt do **not** hot-reload — relaunch the app. New env vars need a **re-login** (or a
   Quickshell process restart for the tray menus); `hyprctl reload` is not enough.
@@ -106,7 +106,7 @@ classic hyprlang forms like `hyprctl dispatch dpms off` fail to parse on this bu
   the panel is never enabled and never part of a dpms cycle — the cross-GPU blit aquamarine#324
   wedges. Lock-out guard: docked with nothing plugged into the eGPU keeps the panel on. To keep it
   anyway, set `EGPU_DISPLAYS=0` in `uwsm/env` and re-login; **never re-enable eDP-1 live** in a docked
-  session on aquamarine 0.14.0. `egpu-dpms-guard` now skips dpms-off only while docked with the panel
+  session on aquamarine 0.14.0. `egpu-dpms-guard` skips dpms-off only while docked with the panel
   still enabled.
 
 **Reload:** `hyprctl reload`.
@@ -141,7 +141,7 @@ native NetworkManager / BlueZ state (`wifiDevice`, `wifiNetwork`, `wifiStrength`
 rfkill soft block so the choice survives a reboot) and the one discovery session every monitor's Bluetooth
 drawer shares (`btDrawersOpen`, `btOwesDiscoveryStop`: scan only while a drawer is open, stopped after
 close against BlueZ's confirmed state) and the `bt-agent` pairing agent, which runs only for that same
-window (`btAgent`, `running: btWantsDiscovery`); it is no longer autostarted. Stopping a `Process` sends
+window (`btAgent`, `running: btWantsDiscovery`); it is not autostarted. Stopping a `Process` sends
 SIGTERM, which `bt-agent` catches without ever exiting, so the close also sends it SIGINT — drop that and
 the auto-accept agent outlives the drawer, orphaned, one more per open.
 It also owns the agents usage records (one `AgentRecord.qml`
@@ -159,7 +159,7 @@ no-op, while an update is already running).
 
 ### Launcher (`Launcher.qml` / `LauncherWindow.qml`)
 The app launcher (`SUPER+SPACE`, and the Arch button in the bar) replaces Walker and its Elephant backend:
-neither is bound or started any more, so nothing outside Quickshell is involved. `Launcher.qml` is a
+neither is bound or started, so nothing outside Quickshell is involved. `Launcher.qml` is a
 `pragma Singleton` owning `opened` / `query` / `apps` / `calcExpr` / `calcText`; `LauncherWindow.qml` is
 its view, one fullscreen `PanelWindow` declared once in `shell.qml` that shows on the focused monitor. It
 lists **apps only** (`DesktopEntries`), ranked by `LauncherModel.js`, whose search half is ported from
@@ -200,17 +200,14 @@ whose sticky toast is the click target, and `/usr/bin/uwsm-app`, which sends one
 returns `ServiceUnknown` and some apps abort rather than degrade, so any config error that stops Quickshell
 loading also takes notifications down with it. Check with `busctl --user list | grep -i Notifications`.
 
-mako is **uninstalled** (`pacman -Rns mako`), not merely masked. Masking was the interim step, and it was
-needed because dropping mako's autostart line is not enough on its own: it shipped a D-Bus service file
-claiming the same name, so the next `notify-send` would have activated it and it would have stolen the bus
-back. Removing the package takes that file with it, which is what finally settles the question — so **do
-not reinstall mako and leave it sitting there**, because an installed mako can always be activated into an
-unowned bus.
+mako is **uninstalled** (`pacman -Rns mako`); **do not reinstall it**. Its package ships a D-Bus service file
+claiming `org.freedesktop.Notifications`, so an installed mako can always be activated into an unowned bus
+and take it from Quickshell. Masking mako or dropping its autostart line does not prevent that.
 
 Quickshell is therefore the only notification daemon on the box, and there is deliberately no fallback: if
 it fails to load, notifications are down until it loads again. That is what makes a config error under
 `quickshell/` more expensive than it looks — restart it and check the log (above) after any QML edit.
-A restart no longer loses a *pending* crash toast: `crash-watch`'s `notify-send` is blocked waiting for
+A restart does not lose a *pending* crash toast: `crash-watch`'s `notify-send` is blocked waiting for
 the click and libnotify never returns once the server that showed the toast is gone, so `crash-watch`
 polls the bus name's owner while it waits, kills the stranded waiter when a new connection holds the
 name, and shows the toast again on the new server (ten rounds at most). `agent-crash <pid>` by hand
@@ -367,7 +364,7 @@ print command-not-found.
 everything committed is world-readable: file contents, commit messages, PR bodies and review threads.
 Fully-qualified issue references (`owner/repo#N`, or the full URL) in a PR body, commit message, or
 comment autolink and post a permanent public "mentioned this" event on the upstream issue's timeline
-(PR #7 did this on `hyprwm/aquamarine#324` and `#316`; such events cannot be removed afterwards). Default
+(such events cannot be removed afterwards). Default
 to the non-linking forms — a code span (`` `hyprwm/aquamarine#324` ``) or the bare `aquamarine#324` — and
 use the autolinking form only when the mention is deliberately meant for upstream. **PWAs only, no project
 source repos**. Only the named packages are stowed, and `.gitignore` backstops secrets (`.env`, keys,
