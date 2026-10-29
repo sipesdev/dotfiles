@@ -108,6 +108,10 @@ classic hyprlang forms like `hyprctl dispatch dpms off` fail to parse on this bu
   anyway, set `EGPU_DISPLAYS=0` in `uwsm/env` and re-login; **never re-enable eDP-1 live** in a docked
   session on aquamarine 0.14.0. `egpu-dpms-guard` skips dpms-off only while docked with the panel
   still enabled.
+- **eDP-1 drops to 60 Hz on battery while undocked** (165 Hz on AC; about 1 W saved). `modules/monitors.lua`
+  picks the rate from `/sys/class/power_supply/ACAD/online` at load, and a 5 s `hl.timer` re-applies the
+  rule when that flips (Hyprland has no power-supply event; each switch is a modeset, so the panel blinks
+  once). Docked (`EGPU_PRESENT=1`) the rate is never touched.
 
 **Reload:** `hyprctl reload`.
 

@@ -21,20 +21,54 @@
 --
 -- Positions are unchanged: DP-11 at 1600x0 and DP-9 at 3520x0 are explicit, so
 -- the empty 0..1600 strip left while the panel is off is harmless.
+--
+-- Undocked on battery the panel runs at 60 Hz instead of 165 (about 1 W less);
+-- plugging in brings 165 back. Hyprland has no power-supply event, so a 5 s timer
+-- polls the ACPI adapter and re-applies the rule only when the state flips (a
+-- modeset: the panel blinks once). Docked, the rate never changes. Timers die
+-- with the Lua state on `hyprctl reload`, so reloads do not stack them.
 
 local home = os.getenv("HOME")
-local panel_off = os.getenv("EGPU_PRESENT") == "1" and os.getenv("EGPU_DISPLAYS") == "1"
+local docked = os.getenv("EGPU_PRESENT") == "1"
+local panel_off = docked and os.getenv("EGPU_DISPLAYS") == "1"
 
-hl.monitor({
-    output   = "eDP-1",
-    disabled = panel_off,       -- docked with a display on the eGPU -> off
-    mode     = "2560x1600@165",
-    position = "0x0",           -- far left; anchors the external layout
-    scale    = "auto",
-    vrr      = 1,
-    cm       = "srgb",
-    icc      = home .. "/.local/share/icc/BOE_NE160QDM_NZ6.icm",
-})
+local function on_battery()
+    local f = io.open("/sys/class/power_supply/ACAD/online")
+    if not f then return false end
+    local online = f:read()
+    f:close()
+    return online == "0"
+end
+
+local function panel_hz()
+    return (not docked and on_battery()) and 60 or 165
+end
+
+local function panel_rule(hz)
+    hl.monitor({
+        output   = "eDP-1",
+        disabled = panel_off,       -- docked with a display on the eGPU -> off
+        mode     = "2560x1600@" .. hz,
+        position = "0x0",           -- far left; anchors the external layout
+        scale    = "auto",
+        vrr      = 1,
+        cm       = "srgb",
+        icc      = home .. "/.local/share/icc/BOE_NE160QDM_NZ6.icm",
+    })
+end
+
+local hz = panel_hz()
+panel_rule(hz)
+
+if not docked then
+    hl.timer(function()
+        local want = panel_hz()
+        if want ~= hz then
+            hz = want
+            panel_rule(hz)
+        end
+    end, { timeout = 5000, type = "repeat" })
+end
 
 -- ── External displays (eGPU: RTX 3080 Ti via OCuLink) ─────────────────
 -- Driven by the NVIDIA card (0000:c1:00.0). Left-to-right layout:
