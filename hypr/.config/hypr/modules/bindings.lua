@@ -90,10 +90,14 @@ hl.bind("SHIFT + Print",   hl.dsp.exec_cmd("hyprshot -m output -o " .. home .. "
 hl.bind(mod .. " + SHIFT + C", hl.dsp.exec_cmd("hyprpicker -a"), { description = "Pick color" })
 
 -- ── Media / brightness (laptop function keys) ─────────────────────────
-hl.bind("XF86AudioRaiseVolume",  hl.dsp.exec_cmd("wpctl set-volume -l 1 @DEFAULT_AUDIO_SINK@ 5%+"), { locked = true, repeating = true })
-hl.bind("XF86AudioLowerVolume",  hl.dsp.exec_cmd("wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"),       { locked = true, repeating = true })
-hl.bind("XF86AudioMute",         hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"),       { locked = true })
-hl.bind("XF86AudioMicMute",      hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle"),     { locked = true })
+-- The volume keys raise the Quickshell volume OSD once wpctl is done (OUTPUT for the sink, INPUT
+-- for mic mute). Quickshell not running only fails the ipc call; the volume still changes.
+local osd_out = " && qs ipc call osd output"
+local osd_in  = " && qs ipc call osd input"
+hl.bind("XF86AudioRaiseVolume",  hl.dsp.exec_cmd("wpctl set-volume -l 1 @DEFAULT_AUDIO_SINK@ 5%+" .. osd_out), { locked = true, repeating = true })
+hl.bind("XF86AudioLowerVolume",  hl.dsp.exec_cmd("wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-" .. osd_out),       { locked = true, repeating = true })
+hl.bind("XF86AudioMute",         hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle" .. osd_out),       { locked = true })
+hl.bind("XF86AudioMicMute",      hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle" .. osd_in),      { locked = true })
 hl.bind("XF86MonBrightnessUp",   hl.dsp.exec_cmd(home .. "/.local/bin/backlight up"),                 { locked = true, repeating = true })
 hl.bind("XF86MonBrightnessDown", hl.dsp.exec_cmd(home .. "/.local/bin/backlight down"),               { locked = true, repeating = true })
 

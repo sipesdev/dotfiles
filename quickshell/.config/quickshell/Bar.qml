@@ -115,6 +115,9 @@ PanelWindow {
     DisplayDrawer     { barWindow: bar; key: "display";   anchorItem: displayIcon }
     AgentsDrawer      { barWindow: bar; key: "agents";    anchorItem: agentsIcon }
 
+    // Volume OSD for the volume / mic-mute keys, under the audio pill like its drawer.
+    OsdWindow { barWindow: bar; anchorItem: audioIcon }
+
     // Notifications share the popouts' top-right corner, so an open popout holds the
     // stack: arrivals queue and visible cards freeze until it closes. Cleared on
     // destruction too, or unplugging this monitor would strand the hold forever.

@@ -116,7 +116,7 @@ classic hyprlang forms like `hyprctl dispatch dpms off` fail to parse on this bu
 **Reload:** `hyprctl reload`.
 
 ## Quickshell (`quickshell/`) — 0.3.0, hand-written QML
-No `qmldir`. `Theme.qml`, `Sys.qml`, `Notifs.qml` and `Launcher.qml` are `pragma Singleton`, auto-resolved by filename.
+No `qmldir`. `Theme.qml`, `Sys.qml`, `Notifs.qml`, `Launcher.qml` and `Osd.qml` are `pragma Singleton`, auto-resolved by filename.
 `shell.qml` carries `//@ pragma UseQApplication` (required for native SNI tray context menus). `Sys.qml`
 holds cross-component state (ethernet/Wi-Fi hand-off, native NetworkManager and BlueZ state; auto-brightness owns the `autobrightness`
 process).
@@ -188,6 +188,17 @@ tested by `make test` (`tests/quickshell/launchermodel.test.js`). Enter launches
 - Every desktop-entry string, the query and the qalc output are `textFormat: Text.PlainText`
   (`.desktop` files are third-party). Like everything under `quickshell/`, restart Quickshell and check
   the log after an edit.
+
+### Volume OSD (`Osd.qml` / `OsdWindow.qml`)
+A display-only popup in the style of the macOS volume HUD: the audio drawer's OUTPUT (or INPUT) header and
+`SliderRow` on their own, sliding out of the bar under the audio pill and back after 1.5 s (`Osd.timeout`;
+each press restarts it, so a held key keeps it up). Only the keybinds raise it: the volume and mute keys in
+`modules/bindings.lua` append `&& qs ipc call osd output` to their `wpctl` (mic mute: `osd input`), so the
+drawer slider and the pill wheel never do. `Osd.qml` holds `kind` / `shown` and the `osd` IPC target;
+`OsdWindow` is declared in `Bar.qml`, one per screen, and shows on the focused monitor only. It has
+`mask: Region {}` (click-through, no keyboard), stays down while that bar's audio drawer is open (the
+drawer's slider already moves), holds the notification stack like a popout, and moves to the Overlay layer at
+the top of the screen under a fullscreen window, as `NotificationLayer` does.
 
 ### Notifications (`Notifs.qml`) — Quickshell owns the bus, not mako
 `Notifs.qml` is the notification daemon: it owns `org.freedesktop.Notifications`, caps Normal and Low
