@@ -1,10 +1,13 @@
 pragma Singleton
 import Quickshell
 import Quickshell.Services.Notifications
+import Quickshell.Services.Pipewire
 import QtQuick
+import "NotifModel.js" as NotifModel
 
 // Notification daemon. Owns org.freedesktop.Notifications, the visible card stack,
-// and the queue of notifications that arrived while a popout was covering the stack.
+// and the queue of notifications that arrived while a popout was covering the stack or a
+// screen was being shared.
 //
 // Lifetime rule that shapes this whole file: a Notification is destroyed the moment
 // it stops being tracked (`tracked = false` is literally dismiss()), and an app that
@@ -27,6 +30,10 @@ Singleton {
     // arrives as the raw D-Bus value in MILLISECONDS (verified: notify-send
     // -t 3000 delivers 3000), where 0 means "never expire" and -1 means "server
     // decides". The `> 0` test sends both to the cap.
+    //
+    // During a screen share Normal and Low notifications are expired unseen -- a toast
+    // over a shared screen is a leak. Critical ones queue on the hold below and show
+    // when the share ends: they must stay findable (crash-watch's click-to-diagnose).
     readonly property int maxTimeout: 8000
     readonly property int maxVisible: 5
 
@@ -53,16 +60,24 @@ Singleton {
         onNotification: (n) => root.present(n)
     }
 
-    // ── Hold: a popout is covering the stack ─────────────────────────
+    // ── Hold: a popout is covering the stack, or a screen is shared ──
     // The quicksettings and battery popouts are top-right layer surfaces at the same
     // origin as the notification stack, so they collide. Rather than let them overlap,
     // Bar registers a hold while either is open: arrivals queue, and the cards already
-    // on screen freeze their countdowns. Nothing is lost -- present() acks each
-    // notification before it branches, so a held notification is invisible to us, not
-    // to the app that sent it.
+    // on screen freeze their countdowns. Nothing a popout holds is lost -- present()
+    // acks each notification before queueing it, so a held notification is invisible to
+    // us, not to the app that sent it. The screen-share drop at the top of present() is
+    // the one deliberate exception.
+    //
+    // A screen share is a second reason to hold: cards already on screen hide and freeze
+    // until it ends. The signal is xdph's PipeWire stream node, which is session-level.
+    // Hyprland's `screencast` event follows frames instead: its 500 ms stop timer makes a
+    // static slide read as "not sharing", and a toast's own damage would be captured
+    // before the event flips back.
     property var holders: []                     // Bar instances with a popout open
     property var pending: []                     // arrived while held, capped at maxVisible
-    readonly property bool held: holders.length > 0
+    readonly property bool screenShared: Pipewire.nodes.values.some((n) => n && NotifModel.isScreenCast(n.name, n.type, PwNodeType.VideoSource))
+    readonly property bool held: holders.length > 0 || screenShared
 
     // Deferred, not immediate: switching straight from one popout to the other drops the
     // hold for a single statement (see drain()). Qt.callLater collapses that transient.
@@ -113,6 +128,14 @@ Singleton {
     }
 
     function present(n) {
+        // The drop for a screen share: expired unseen, so the app gets NotificationClosed
+        // with reason Expired. It must run before tracking -- an untracked notification is
+        // freed by the server right after this handler, so nothing is left to clean up.
+        if (root.screenShared && n.urgency !== NotificationUrgency.Critical) {
+            n.expire();
+            return;
+        }
+
         // Untracked notifications are discarded by the server, so this is both the ack
         // and what keeps the object alive long enough to invoke its actions.
         n.tracked = true;

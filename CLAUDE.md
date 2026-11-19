@@ -215,6 +215,13 @@ whose sticky toast is the click target, and `/usr/bin/uwsm-app`, which sends one
 returns `ServiceUnknown` and some apps abort rather than degrade, so any config error that stops Quickshell
 loading also takes notifications down with it. Check with `busctl --user list | grep -i Notifications`.
 
+**Screen-share mute:** while xdph's ScreenCast stream node exists (PipeWire `node.name`
+`xdg-desktop-portal-hyprland`, `Video/Source`), Normal and Low arrivals are expired unseen, and Critical ones
+and the cards already on screen are held until the share ends. That covers every portal share (Zoom, Meet,
+Slack, Vesktop, OBS). Do not switch it to Hyprland's `screencast` / `screenshare.state` events: they are
+frame-driven (a 500 ms stop timer), so a static screen reads as stopped. The webcam is also a `Video/Source`,
+so the name match in `NotifModel.isScreenCast` is load-bearing.
+
 mako is **uninstalled** (`pacman -Rns mako`); **do not reinstall it**. Its package ships a D-Bus service file
 claiming `org.freedesktop.Notifications`, so an installed mako can always be activated into an unowned bus
 and take it from Quickshell. Masking mako or dropping its autostart line does not prevent that.
