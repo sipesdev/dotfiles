@@ -15,6 +15,20 @@ function localImage(source) {
     return "";
 }
 
+// xdg-desktop-portal-hyprland creates one PipeWire stream per ScreenCast session with
+// pw_stream_new(core, "xdph-streaming-...", {media.class=Video/Source}), and PipeWire names
+// that node after the client's application.name, so node.name is the portal's own name.
+// The node lives exactly as long as the session, which is what makes it the signal for
+// "a screen is being shared". The name match is load-bearing: the webcam is also a
+// Video/Source and is always present, so the type alone would mute everything. QML passes
+// PwNodeType.VideoSource as `flag`; the mask test is AudioModel.isAudioSource's.
+function isScreenCast(name, type, flag) {
+    if (name !== "xdg-desktop-portal-hyprland") return false;
+    var t = Number(type), f = Number(flag);
+    if (!isFinite(t) || !isFinite(f) || f === 0) return false;
+    return (t & f) === f;
+}
+
 if (typeof module !== "undefined") {
-    module.exports = { localImage: localImage };
+    module.exports = { localImage: localImage, isScreenCast: isScreenCast };
 }

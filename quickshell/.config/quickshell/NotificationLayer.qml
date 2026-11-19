@@ -46,8 +46,8 @@ PanelWindow {
     exclusionMode: fullscreen ? ExclusionMode.Ignore : ExclusionMode.Normal
     WlrLayershell.layer: fullscreen ? WlrLayer.Overlay : WlrLayer.Top
 
-    // Held means a popout is covering this spot; the cards stay alive with their
-    // countdowns frozen, they just stop being drawn until it closes.
+    // Held means a popout is covering this spot or a screen is being shared; the cards
+    // stay alive with their countdowns frozen, they just stop being drawn until it ends.
     visible: focusedHere && !Notifs.held && Notifs.model.values.length > 0
 
     Column {
